@@ -6,10 +6,10 @@
 
 Any language pair · Any agent runtime · EPUB in, EPUB out · You can correct anything, down to a single sentence
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Dependencies](https://img.shields.io/badge/deps-lxml-lightgrey)
-![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Gemini%20CLI%20%7C%20any-purple)
+![Python](docs/badges/python.svg)
+![License](docs/badges/license.svg)
+![Dependencies](docs/badges/deps.svg)
+![Agents](docs/badges/agents.svg)
 
 </div>
 
