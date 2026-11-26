@@ -15,7 +15,8 @@ You are the **orchestrator**. The `bth` CLI does every deterministic step and va
 3. Confirm with the user before starting:
    - the target title, if known;
    - register and form of address;
-   - whether names may be verified online (`entities` in `book.toml`).
+   - whether names may be verified online (`entities` in `book.toml`);
+   - whether your subagents can view images (`figures` in `book.toml`; needed to translate text inside charts and tables).
 4. If `bth init` reports a missing language pack, draft `bth/langs/<tag>.toml` from `bth/langs/zh-Hans.toml` and ask the user to review it.
 
 ## Loop
@@ -42,3 +43,4 @@ The user can change the translation through three levers:
 1. **Glossary:** edit `glossary.csv`, then run `bth impact <book> --since <rev>` (or `--terms …`), then `bth next`.
 2. **Style:** edit `style_guide.md` or `examples.md`, run `bth plan <book> translate --chapters <ids>` on a sample chapter, compare the output, then widen the scope.
 3. **Direct edits:** edit `translation/*.md`. These segments are locked automatically. Rebuild with `bth next`.
+4. **Images:** save a translated copy of an image under `<book_dir>/figures/` with the same file name, then rebuild. `review/QA_REPORT.md` lists the images that contain text.

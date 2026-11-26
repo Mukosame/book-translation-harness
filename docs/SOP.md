@@ -2,7 +2,7 @@
 
 This is the method the harness implements. `AGENTS.md` is the short operational version for agents. This document explains **why** each step exists and **what** each gate checks.
 
-It is distilled from translating two complete non-fiction books (a PDF of about 440 chunks and an EPUB of about 1,400 segments) with parallel Claude subagents, and from the reviews that followed.
+It is distilled from translating two complete non-fiction books (one PDF, one EPUB) with parallel subagents, and from the reviews that followed.
 
 ## Principles
 
@@ -38,7 +38,8 @@ It is distilled from translating two complete non-fiction books (a PDF of about 
 ├── glossary.csv      # terms, names, works, organisations
 ├── examples.md       # exemplary translations that set the voice
 ├── review/           # qa_rN.jsonl, fix_rN.jsonl, revise_rN.jsonl, backtranslation.jsonl, QA_REPORT.md
-├── work/             # skeleton.epub + skeleton.json (build skeleton), tasks/, out/, entities.tsv
+├── figures/          # optional: translated replacement images, same file names as in the EPUB
+├── work/             # skeleton.epub + skeleton.json (build skeleton), figures.json + images/, tasks/, out/, entities.tsv
 └── dist/             # <book>.<lang>.epub, bilingual.html
 ```
 
@@ -46,17 +47,18 @@ It is distilled from translating two complete non-fiction books (a PDF of about 
 
 ```
 <!-- ch03-p0017 h2 -->
-The Purpose of a System
+Can Machines Think?
 
 <!-- ch03-p0018 p -->
-Beer liked to say that {{1}}the purpose of a system is what it does{{/1}}.{{2/}}
+Turing asked a simple question: {{1}}can machines think{{/1}}?{{2/}}
 ```
 
 - **IDs** are assigned at extraction and never renumbered: chapter = spine document, then paragraph number. The same IDs are shared by every target language of the same source.
-- **Types**: the block element (`h1` … `h6`, `p`, `li`, `blockquote`, `td`, `figcaption` …).
+- **Types**: the block element (`h1` … `h6`, `p`, `li`, `blockquote`, `td`, `figcaption` …), or `fig` / `alt` for text inside an image (IDs `chNN-fNNNN`, see 1b).
 - **Placeholders** carry all inline markup:
   - `{{n}}…{{/n}}` for elements with content (italics, links, note markers);
   - `{{n/}}` for empty elements (anchors, images, line breaks).
+  - `{{i}}…{{/i}}` is the one placeholder a translator may add: italics the target needs but the source lacks (e.g. English titles for Chinese 《》). It is optional and only checked for nesting.
   - A translation must contain every placeholder exactly once. Pairs may move with their phrase but must not cross.
 - **Translation headers** also carry `src=<hash of source>` and `mt=<hash of machine text>`, plus the worker name:
   - A changed source makes the translation **stale**, and it is re-planned.
@@ -68,6 +70,7 @@ Beer liked to say that {{1}}the purpose of a system is what it does{{/1}}.{{2/}}
 |---|---|---|---|
 | 0 | `bth init` | user | language pack exists (otherwise draft one: appendix) |
 | 1 | extract | script | coverage ≥ 98% of visible text |
+| 1b | figures | N agents that can view images (`figures = true`) | one validated line per image; labels merged as `fig` segments |
 | 2 | spec (+ entities) | 1 spec agent; 3 entity agents with web access | three spec files valid; user checkpoint on the spec (recommended) |
 | 3 | translate | N agents | every segment merged and structurally valid |
 | 4 | QA → fix (up to `qa_rounds`) | N QA agents, cross-assigned; fixers | no unresolved critical issues |
@@ -88,6 +91,17 @@ Every source is turned into an EPUB skeleton: EPUBs are used as they are, and ot
   - space-separated scripts get a space, with de-hyphenation;
   - scripts without word spaces are joined directly.
 - **Gate:** captured text must be at least 98% of visible text. Below that, `bth next` returns `attention`.
+
+### 1b. Text inside images
+
+Charts, diagrams, maps and tables are often pictures. Their labels are pixels, so extraction cannot see them and they would reach the reader untranslated.
+
+- **Scan (script):** every image in the spine is listed in `work/figures.json`, anchored after the segment that precedes it, and copied to `work/images/` for viewing. Files under 2 KB (rules, ornaments) are skipped.
+- **Transcribe (agents that can view images):** one JSON line per image, with its `kind` (chart, table, photo, cover …) and `items`, the labels a reader needs. Numbers, units and text already in the target language are left out.
+- **Merge:** the labels go into `original/` as `fig` segments right after the anchor, and non-empty `alt` text as an `alt` segment. From there they are translated, checked against the glossary and reviewed like any other segment, and human edits lock them in the same way.
+- **Build:** under each image with translated labels, the build adds a key such as `图中文字：Revenue＝收入；Costs＝成本`. The format comes from the language pack's `[figures]` section. Translated `alt` text replaces the original.
+- **Human correction:** save a translated copy of an image under `figures/` with the same file name. The build swaps it in and drops the key. `QA_REPORT.md` lists every image with text.
+- Turn the phase off with `figures = false` if your agents cannot view images.
 
 ### 2. Spec
 
@@ -181,7 +195,7 @@ Lessons with general value belong in the glossary, the style guide, the pair pro
 4. The book is verified structurally, and with epubcheck when it is on PATH.
 5. `dist/bilingual.html` is generated as well.
 
-Untranslated segments keep their source text, and their count is reported.
+Untranslated segments keep their source text, and their count is reported. Image keys and replacement images are applied as described in 1b.
 
 ### 7. Release and errata
 
@@ -209,6 +223,7 @@ Untranslated segments keep their source text, and their count is reported.
 
 - Index re-sorting by target-language collation is not implemented yet (`order = "keep_source"`).
 - PDF extraction uses font-size heuristics. It does not handle footnotes or images.
+- Text inside images is translated as a key under the image, not redrawn in the image; text in inline `<svg>` is not extracted.
 - Token counts are estimated, not tokenised.
 - Locking uses POSIX `fcntl`; there is no Windows support yet.
 - Source-side glossary matching is a case-insensitive substring match; there is no stemming for highly inflected source languages.

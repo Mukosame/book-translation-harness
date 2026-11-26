@@ -60,12 +60,17 @@ hyphenation = false
 fonts = ["Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "serif"]
 css_extra = "p { text-indent: 2em; margin: 0; line-height: 1.7; } h1, h2, h3 { text-indent: 0; }"
 
+[figures]                  # key added under images that contain text
+label = "图中文字："
+pair = "＝"
+sep = "；"
+
 [index]
 order = "keep_source"      # keep_source | resort   (shortcut: resort is not implemented yet)
 
 [nav_labels]
 "Cover" = "封面"
-"Title Page" = "扉页"
+"Title Page" = ["扉页", "书名页", "题名页"]   # first is used as a target label; all are recognised in sources
 "Halftitle Page" = "半书名页"
 "Half Title" = "半书名页"
 "Navigational Table of Contents" = "目录"

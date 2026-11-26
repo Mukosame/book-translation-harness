@@ -17,7 +17,7 @@ secondary = ["‘", "’"]
 straight_forbidden = false
 
 [titles]
-works = ["<i>", "</i>"]    # italics; agents keep the source's inline markup placeholders
+works = ["{{i}}", "{{/i}}"]    # italics; {{i}}…{{/i}} adds an <i> the source lacks (e.g. for 《》 titles); source placeholders stay as they are
 
 [numbers]
 decimal_separator = "."
@@ -59,6 +59,11 @@ page_progression = "ltr"
 hyphenation = true
 fonts = ["Georgia", "serif"]
 css_extra = "p { margin: 0 0 0.6em; line-height: 1.5; hyphens: auto; }"
+
+[figures]                  # key added under images that contain text
+label = "Text in the image: "
+pair = " = "
+sep = "; "
 
 [index]
 order = "keep_source"

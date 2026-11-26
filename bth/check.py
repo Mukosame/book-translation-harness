@@ -23,10 +23,15 @@ def glossary(book, approved_only=True):
 
 def term_hits(rows, text):
     """Rows whose source occurs in text: case-sensitive for proper nouns (any capital), else case-insensitive."""
-    low = text.lower()
+    # Longest source wins: a source inside a longer matched one (马克 in 马克思) is not a separate hit.
     # shortcut: substring match (covers English plurals); add stemming for heavily inflected source languages
-    return [r for r in rows if r["source"] and
-            (r["source"] in text if r["source"] != r["source"].lower() else r["source"] in low)]
+    hit = set()
+    for src in sorted({r["source"] for r in rows if r["source"]}, key=len, reverse=True):
+        flags = 0 if src != src.lower() else re.I
+        if re.search(re.escape(src), text, flags):
+            hit.add(src)
+            text = re.sub(re.escape(src), "\0", text, flags=flags)
+    return [r for r in rows if r["source"] in hit]
 
 
 def structural(src, tgt):
@@ -129,8 +134,9 @@ def run(book, ids=None):
             forms = [r["target"]] + [f for f in r.get("target_forms", "").split(";") if f]
             if not any(re.search(f[3:], tgt) if f.startswith("re:") else f in tgt for f in forms):
                 add(sid, "warn", "term", f"{r['source']!r} should be rendered {r['target']!r}")
+            rest = tgt.replace(r["target"], "\0")  # a forbidden short form inside the full target is fine
             for bad in filter(None, r.get("forbidden", "").split(";")):
-                if bad in tgt:
+                if bad in rest:
                     add(sid, "error", "forbidden", f"{bad!r} is forbidden (use {r['target']!r})")
         for ch in forbid_p:
             if re.search(rf"[{tgt_chars}]{re.escape(ch)}|{re.escape(ch)}[{tgt_chars}]", plain):

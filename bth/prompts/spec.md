@@ -26,7 +26,7 @@ $chapters
    - Use established $lang_to renderings where you know them. Mark rows you are sure of as `approved`, and everything else as `proposed`. $entities_note
    - **Column meanings:**
      - `target_forms`: other acceptable forms, separated by `;`: inflected forms, and short forms allowed after the first mention (e.g. 荷航 for 荷兰皇家航空);
-     - `first_mention`: the full form to use the first time the item appears in a chapter (e.g. 斯塔福德·比尔（Stafford Beer）);
+     - `first_mention`: the full form to use the first time the item appears in a chapter (e.g. 艾伦·图灵（Alan Turing）);
      - `type`: one of person, title, term, org, place, event.
    - **How `bth check` matches rows:**
      - An approved row without a `context` is enforced wherever its `source` occurs in a segment. Matching is a substring match: case-sensitive if `source` contains a capital letter, otherwise case-insensitive.

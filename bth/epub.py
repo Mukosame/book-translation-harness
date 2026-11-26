@@ -137,7 +137,7 @@ def _fill(el, text, shells):
         if close:
             last = stack.pop()
             continue
-        child = etree.fromstring(shells[n])
+        child = etree.fromstring(shells[n]) if n in shells else etree.Element(f"{{{XHTML}}}i")
         stack[-1].append(child)
         if empty:
             last = child

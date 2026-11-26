@@ -11,10 +11,11 @@ import subprocess
 import sys
 import time
 
+from . import figures
 from .book import PKG, h8, parse_segments, dump_segments, tokens
 from .check import GLOSSARY_COLUMNS, glossary, structural, term_hits
 
-PHASES = ["spec", "entities", "translate", "qa", "fix", "revise", "backtranslate"]
+PHASES = ["figures", "spec", "entities", "translate", "qa", "fix", "revise", "backtranslate"]
 SEVERITIES = {"critical", "major", "minor"}
 CATEGORIES = {"omission", "addition", "mistranslation", "negation", "number", "terminology", "logic", "fluency",
               "tone", "register", "gender", "pronoun", "punctuation", "locale", "structure", "source"}
@@ -72,6 +73,8 @@ def plan(book, phase, ids=None, rnd=1, extra=None):
         groups = [[]]
     elif phase == "entities":
         groups = [[k] for k in ENTITY_SCOPES]
+    elif phase == "figures":
+        groups = figures.groups(book)
     else:
         groups = units(book, set(ids) if ids is not None else None)
     new, extra, trans = [], extra or {}, book.translation()
@@ -110,7 +113,7 @@ def claim(book, phase=None, worker=None):
 def output_path(book, t):
     if t["phase"] == "spec":
         return book.root
-    ext = {"entities": "csv", "qa": "jsonl", "backtranslate": "jsonl"}.get(t["phase"], "md")
+    ext = {"entities": "csv", "qa": "jsonl", "backtranslate": "jsonl", "figures": "jsonl"}.get(t["phase"], "md")
     return book.work / "out" / f"{t['id']}.{ext}"
 
 
@@ -160,6 +163,7 @@ def render(book, t):
         "minor_note": "they are fixed too in this project (`fix_minor = true`); report them." if book.opt.get("fix_minor")
         else "they are not fixed automatically in this project (`fix_minor = false`); report one only if it clearly "
              "hurts readability, never as a matter of taste.",
+        "figures": figures.prompt_list(book, t["ids"]) if t["phase"] == "figures" else "",
         "report_lang": book.opt.get("report_lang", "en"), "templates": str(PKG / "templates"), "done_cmd": f"{BTH} done {book.root} {t['id']}",
     }
     common = string.Template((PKG / "prompts" / "_common.md").read_text("utf-8")).safe_substitute(v)
@@ -252,6 +256,19 @@ def done(book, tid):
             if not errors:
                 merge_glossary(book, rows)
                 info["rows"] = len(rows)
+        elif t["phase"] == "figures":
+            rows = []
+            for n, line in enumerate(out.read_text("utf-8").splitlines(), 1):
+                if not line.strip():
+                    continue
+                try:
+                    rows.append((n, json.loads(line)))
+                except json.JSONDecodeError as e:
+                    errors.append(f"line {n}: invalid JSON ({e})")
+            errors += figures.validate(rows, t["ids"])
+            if not errors:
+                figures.merge(book, [r for _, r in rows])
+                info["images"] = len(rows)
         elif t["phase"] in ("qa", "backtranslate"):
             rows = []
             for n, line in enumerate(out.read_text("utf-8").splitlines(), 1):

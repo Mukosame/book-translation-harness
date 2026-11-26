@@ -8,7 +8,7 @@ from pathlib import Path
 
 PKG = Path(__file__).parent
 HEADER = re.compile(r"^<!-- (\S+) (\S+)((?: \S+)*) -->$", re.M)
-PH = re.compile(r"\{\{(/?)(\d+)(/?)\}\}")
+PH = re.compile(r"\{\{(/?)(\d+|i)(/?)\}\}")  # {{i}}…{{/i}}: italics the target adds (title marks), not in source
 SCRIPTS = {  # Unicode ranges per ISO 15924 script, enough for residue/punctuation checks
     "Latn": "A-Za-zÀ-ɏ", "Cyrl": "Ѐ-ӿ", "Grek": "Ͱ-Ͽ",
     "Arab": "؀-ۿ", "Hebr": "֐-׿", "Deva": "ऀ-ॿ", "Thai": "฀-๿",
@@ -35,7 +35,8 @@ def placeholders(text):
     """Return (multiset list, nesting_ok) for {{n}}…{{/n}} / {{n/}} placeholders."""
     found, stack, ok = [], [], True
     for close, n, empty in PH.findall(text):
-        found.append(f"{close}{n}{empty}")
+        if n != "i":  # target-added italics are optional, so only their nesting is checked
+            found.append(f"{close}{n}{empty}")
         if empty:
             continue
         if close:

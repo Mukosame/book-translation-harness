@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import build, check, extract, report, tasks
+from . import build, check, extract, figures, report, tasks
 from .book import Book, h8
 
 BOOK_TOML = """\
@@ -26,6 +26,7 @@ workers = 10            # parallel agents per phase
 qa_rounds = 2           # QA -> fix loops
 fix_minor = false       # also fix minor issues
 entities = true         # online verification of names/titles/terms before translating (needs web access)
+figures = true          # transcribe and translate text inside images (needs agents that can view images)
 git_commit = true       # commit after each phase
 report_lang = "en"      # language of QA reports
 register = ""           # override the language pack's default register
@@ -78,6 +79,12 @@ def next_step(book):
         if info["coverage"] < 0.98:
             return {"action": "attention", "step": "extract", **info,
                     "hint": "coverage below 98%: some text was not captured; inspect original/ before continuing"}
+    if book.opt.get("figures", True):
+        figures.scan(book)
+        tasks.plan(book, "figures")
+        step = _dispatch(book, "figures")
+        if step:
+            return step
     if not all(book.path(f).exists() for f in ("style_guide.md", "glossary.csv", "examples.md")) \
             or not all(t["status"] == "done" for t in tasks.all_tasks(book, "spec")):
         tasks.plan(book, "spec")
@@ -87,8 +94,9 @@ def next_step(book):
         step = _dispatch(book, "entities", 3)
         if step:
             return step
-        _commit(book, "spec: style guide, glossary, examples")
     orig, trans = book.original(), book.translation()
+    if not trans:  # once only: later calls would sweep translations into a "spec" commit
+        _commit(book, "spec: style guide, glossary, examples")
     need = [s for s in orig if s not in trans or
             (trans[s]["meta"].get("src") != h8(orig[s]["text"]) and not book.human_edited(trans[s]))]
     step = _dispatch(book, "translate")
@@ -97,7 +105,8 @@ def next_step(book):
     if need:
         tasks.plan(book, "translate", need, _next_round(book, "translate"))
         return _dispatch(book, "translate")
-    _commit(book, "translate: all segments translated")
+    if not tasks.all_tasks(book, "qa"):  # shortcut: once QA starts, later re-translations land in the qa/build commits
+        _commit(book, "translate: all segments translated")
     for phase in ("revise",):  # human-triggered glossary revisions (bth impact)
         step = _dispatch(book, phase)
         if step:

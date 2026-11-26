@@ -38,6 +38,7 @@ $current_block
 - Pronouns and inferred subjects, when the source language drops them.
 - Grammatical gender, when the target language has it.
 - Locale-specific wording (locale is set in `$book_toml`).
+- Type `fig` segments are labels inside an image: check that they are short, consistent with the prose and the glossary, and do not add words the label lacks.
 
 ## Output: JSON Lines, one issue per line, written to `$output`
 ```

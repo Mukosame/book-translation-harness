@@ -25,8 +25,8 @@ Derived from two full book translations (popular science and economics), includi
 
 ## Names and titles
 - **Famous people:** use the established rendering (凯恩斯, 哈耶克, 图灵).
-- **Other people:** use Xinhua transliteration, with the original in parentheses on first mention per chapter, e.g. 斯塔福德·比尔（Stafford Beer）.
-- **Coined concepts:** add the English in parentheses where the book defines them, e.g. 问责黑洞（accountability sink）.
+- **Other people:** use Xinhua transliteration, with the original in parentheses on first mention per chapter, e.g. 艾伦·图灵（Alan Turing）.
+- **Coined concepts:** add the English in parentheses where the book defines them, e.g. 过滤气泡（filter bubble）.
 - **Books:** use the title of the published Chinese edition when there is one; otherwise translate the title, in 《》. Albums and artworks without an established Chinese title keep the original inside 《》.
 - **Organisations:** use the official mainland name. Where mainland and Taiwan/HK names differ, use the mainland one (Costco 开市客, not 好市多).
 - **Abbreviations:** common ones (AI, GDP, CEO) may stay, but be consistent within a book.
@@ -38,4 +38,4 @@ Derived from two full book translations (popular science and economics), includi
 ## Punctuation conversion
 - British ‘ ’ quotes become “ ”; nested quotes use ‘ ’.
 - Dashes – / — become ——; "..." becomes ……
-- Parenthetical originals go in full-width parentheses: 斯塔福德·比尔（Stafford Beer）.
+- Parenthetical originals go in full-width parentheses: 艾伦·图灵（Alan Turing）.

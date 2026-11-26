@@ -33,11 +33,12 @@ Write `$output` in exactly the same segment format:
 - Every id, in the same order. Do not merge or split segments.
 
 ## Hard rules
-- **Placeholders:** `{{n}}…{{/n}}` and `{{n/}}` stand for markup (italics, links, note markers).
+- **Placeholders:** `{{n}}…{{/n}}` and `{{n/}}` stand for markup (italics, links, note markers). `{{i}}…{{/i}}` adds italics the source lacks; use it only where the target pack's `titles.works` asks for it.
   - Every placeholder in a source segment must appear in its translation exactly once, unchanged.
   - A pair must keep wrapping the translation of the same phrase. It may move with that phrase when word order requires, but pairs must never cross.
 - **Completeness:** translate everything; never summarise or skip. Keep the author's tone, irony and asides.
 - **Kept in the original language:** bibliographic data (authors, titles of cited works in citations, publishers, years, pages, URLs). Translate the surrounding prose.
 - **Index entries:** translate them, and keep locators and placeholders exactly.
+- **Image text:** type `fig` segments are labels printed inside an image (axis titles, legends, callouts, table cells), and `alt` is an image description. Translate `fig` as short labels, using the same terms as the prose and the glossary.
 - **Text only:** the output contains translation text only (no comments, notes, markdown fences or explanations).
 - **Before running done**, check that the placeholder multiset of each segment matches its source.

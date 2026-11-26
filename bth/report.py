@@ -3,7 +3,7 @@ import collections
 import json
 import random
 
-from . import check
+from . import check, figures
 
 SAMPLE_RATE = {"high": 0.04, "medium": 0.09, "low": 0.15}
 
@@ -55,6 +55,7 @@ def run(book):
     proposed = [r for r in check.glossary(book, approved_only=False) if r.get("status") != "approved"]
     lines += ["", f"## Unverified glossary rows ({len(proposed)})", ""] + \
         [f"- {r['source']} → {r['target']} {('(' + r['note'] + ')') if r.get('note') else ''}" for r in proposed]
+    lines += figures.report_lines(book)
     lines += ["", "Open `dist/bilingual.html#<id>` to review a segment side by side."]
     (review / "QA_REPORT.md").write_text("\n".join(lines) + "\n", "utf-8")
     return {"issues": len(issues), "high_risk": risky, "sample": len(picks),

@@ -38,6 +38,7 @@ Paste this into each worker agent and fill in the placeholders:
 
 - **Never edit `original/`, `translation/` or `work/tasks/` by hand.** The harness merges outputs under a lock, keeps an audit trail, and protects human edits.
 - **Entity verification needs web access.** The prompts say how to proceed without it. Turn the phase off with `entities = false` in `book.toml` if needed.
+- **The `figures` phase needs agents that can view images.** They transcribe the labels inside charts, diagrams and tables saved as pictures. Turn it off with `figures = false` if your agents cannot view images.
 - **Report counts by running commands** such as `bth status` and `bth check`, not from memory.
 
 ## Commands
@@ -60,6 +61,8 @@ People can correct the translation at any point, with three levers:
 - `glossary.csv`, followed by `bth impact`;
 - `style_guide.md` / `examples.md`, followed by `bth plan … translate --chapters …`;
 - direct edits in `translation/*.md`.
+
+For images, a translated copy saved under `figures/` with the original file name replaces the image at build time.
 
 Directly edited segments are detected automatically and locked against future machine merges. Then run `bth next` again. The full method is in `docs/SOP.md`.
 

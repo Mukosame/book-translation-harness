@@ -21,6 +21,8 @@ class Segments(unittest.TestCase):
     def test_placeholders(self):
         self.assertEqual(placeholders("a{{1}}b{{2/}}{{/1}}"), (["/1", "1", "2/"], True))
         self.assertFalse(placeholders("{{1}}{{2}}x{{/1}}{{/2}}")[1])  # crossed
+        self.assertEqual(placeholders("{{1}}{{i}}T{{/i}}{{/1}}"), (["/1", "1"], True))  # target-added italics
+        self.assertFalse(placeholders("{{i}}{{1}}T{{/i}}{{/1}}")[1])
         self.assertIn("placeholders differ", check.structural("{{1}}a{{/1}}", "a")[0])
 
 
@@ -33,8 +35,23 @@ class Numbers(unittest.TestCase):
         self.assertEqual(check.numbers("the 1980s and the '70s", en), [])  # decades are rewritten, not checked
 
     def test_term_case(self):
-        rows = [{"source": "The Managerial Revolution"}, {"source": "accountability sink"}]
-        self.assertEqual(check.term_hits(rows, "the managerial revolution. Accountability sinks"), [rows[1]])
+        rows = [{"source": "The Wealth of Nations"}, {"source": "opportunity cost"}]
+        self.assertEqual(check.term_hits(rows, "the wealth of nations. Opportunity costs"), [rows[1]])
+        rows = [{"source": "马克"}, {"source": "马克思"}, {"source": "马克", "context": "x"}]
+        self.assertEqual(check.term_hits(rows, "马克思说"), [rows[1]])  # longest source wins
+        self.assertEqual(check.term_hits(rows, "马克思与马克"), rows)
+
+
+class NavLabels(unittest.TestCase):
+    def test_label_whitespace_and_source_pack(self):
+        from bth import build
+        edit = build._labels_edit({"第一章 绪论": "Chapter 1"})
+        self.assertEqual(edit("<text>第一章\u3000绪论</text>".encode()).decode(), "<text>Chapter 1</text>")
+        book = type("B", (), {"tgt_lang": load_lang("en"), "src_lang": load_lang("zh-Hans"),
+                              "original": lambda self: {}})()
+        labels = build._nav_labels(book, {})
+        self.assertEqual(labels["书名页"], "Title Page")
+        self.assertEqual(labels["封面"], "Cover")
 
 
 class EpubRoundtrip(unittest.TestCase):
@@ -52,6 +69,9 @@ class EpubRoundtrip(unittest.TestCase):
         docs2, _ = epub.extract(d / "b.epub")
         self.assertEqual([s[1] for s in docs2[0][1]], [s[1].upper() for s in segs])
         self.assertEqual(epub.verify(d / "b.epub")[0], [])
+        el = epub.parse(b"<p xmlns='http://www.w3.org/1999/xhtml'>x</p>").getroot()
+        epub._fill(el, "See {{i}}Title{{/i}}.", {})
+        self.assertEqual(el[0].tag, "{http://www.w3.org/1999/xhtml}i")
         with zipfile.ZipFile(d / "b.epub") as z:
             self.assertEqual(z.namelist()[0], "mimetype")
 
@@ -107,6 +127,58 @@ class Flow(unittest.TestCase):
         shutil.rmtree(d)
 
 
+class Figures(unittest.TestCase):
+    def test_image_text_is_transcribed_translated_and_keyed(self):
+        import json
+        from bth import build, report
+        d = Path(tempfile.mkdtemp())
+        epub.make_epub(d / "b.epub", "T", "en", [
+            ("One", '<h1>One</h1><p>Before the chart.</p><p><img src="img/chart.png" alt="Sales chart"/></p>'
+                    '<p>Figure 1: Sales.</p>'),
+            ("Two", "<p>Next.</p>"), ("Plate", '<div><img src="img/plate.png" alt=""/></div>')])
+        with zipfile.ZipFile(d / "b.epub", "a") as z:
+            z.writestr("OEBPS/img/chart.png", b"chart" * 1000)
+            z.writestr("OEBPS/img/plate.png", b"plate" * 1000)
+        root = d / "p"
+        main(["init", str(root), "--source", str(d / "b.epub"), "--from", "en", "--to", "zh-Hans", "--no-git"])
+        book = Book(root)
+        self.assertEqual(next_step(book)["phase"], "figures")
+        c = tasks.claim(book, "figures", "w")
+        self.assertIn("img_chart.png", Path(c["prompt"]).read_text())
+        out = Path(c["output"])
+        out.write_text(json.dumps({"image": "OEBPS/img/chart.png", "kind": "chart", "items": ["Sales"]}) + "\n")
+        self.assertFalse(tasks.done(book, c["task"])["ok"])  # every image needs a line
+        out.write_text("\n".join(json.dumps(x) for x in [
+            {"image": "OEBPS/img/chart.png", "kind": "chart", "items": ["Sales", "Costs", "Sales", " "]},
+            {"image": "OEBPS/img/plate.png", "kind": "table", "items": ["Revenue"]}]))
+        self.assertTrue(tasks.done(book, c["task"])["ok"])
+        self.assertEqual(next_step(book)["phase"], "spec")  # transcribed once, then the normal pipeline
+        o = book.original()
+        self.assertEqual([(k, v["text"]) for k, v in o.items() if k.startswith("ch01")][2:5],
+                         [("ch01-f0001", "Sales chart"), ("ch01-f0002", "Sales"), ("ch01-f0003", "Costs")])
+        self.assertEqual(list(book.original("ch02")), ["ch02-p0001", "ch02-f0001"])  # image-only page
+        for ch in book.chapters():  # stand-in translation: prefix every segment
+            book.write_translation(ch, {k: {"type": v["type"], "text": "译" + v["text"]}
+                                        for k, v in book.original(ch).items()})
+        r = build.run(book, verify=False)
+        self.assertEqual(r["images"], {"with_text": 2, "keyed": 2, "replaced": 0})
+        with zipfile.ZipFile(r["output"]) as z:
+            one, plate = z.read("OEBPS/ch001.xhtml").decode(), z.read("OEBPS/ch003.xhtml").decode()
+        self.assertIn('图中文字：<span lang="en">Sales</span>＝译Sales；<span lang="en">Costs</span>＝译Costs</p>', one)
+        self.assertIn('alt="译Sales chart"', one)
+        self.assertLess(one.index("bth-figure-text"), one.index("译Figure 1"))  # key sits under the image
+        self.assertIn("</div><p class=\"bth-figure-text\"", plate)
+        (root / "figures").mkdir()
+        (root / "figures" / "chart.png").write_bytes(b"translated chart")
+        r = build.run(book, verify=False)
+        with zipfile.ZipFile(r["output"]) as z:
+            self.assertEqual(z.read("OEBPS/img/chart.png"), b"translated chart")
+            self.assertNotIn("bth-figure-text", z.read("OEBPS/ch001.xhtml").decode())
+        report.run(book)
+        self.assertIn("Text in images (2 of 2 images)", (root / "review" / "QA_REPORT.md").read_text())
+        shutil.rmtree(d)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -135,17 +207,17 @@ class PdfHeadings(unittest.TestCase):
 class ChecksOnBook(unittest.TestCase):
     def test_name_variants_terms_and_human_lock(self):
         d = Path(tempfile.mkdtemp())
-        (d / "b.txt").write_text("Stafford Beer met Allende.\n\nBeer again.\n\nThe Costco store.", "utf-8")
+        (d / "b.txt").write_text("Ada Lovelace met Babbage.\n\nLovelace again.\n\nThe Costco store.", "utf-8")
         main(["init", str(d / "p"), "--source", str(d / "b.txt"), "--from", "en", "--to", "zh-Hans", "--no-git"])
         book = Book(d / "p")
         next_step(book)  # extract
         (d / "p" / "glossary.csv").write_text("source,target,status,forbidden\nCostco,开市客,approved,好市多\n")
         ids = list(book.original())
-        texts = ["作家斯塔福德·比尔（Stafford Beer）见了阿连德（Salvador Allende Gossens of Chile）。",
-                 "斯塔福·比尔（Stafford Beer）又来了。", "好市多商店。"]
+        texts = ["作家阿达·洛夫莱斯（Ada Lovelace）见了巴贝奇（Charles Babbage of the Royal Society, London）。",
+                 "艾达·洛夫莱斯（Ada Lovelace）又来了。", "好市多商店。"]
         book.write_translation("ch01", {i: {"type": "p", "text": t, "meta": {"mt": h8(t)}} for i, t in zip(ids, texts)})
         codes = {(i["code"], i["level"]) for i in check.run(book)}
-        self.assertIn(("name-variant", "warn"), codes)   # 斯塔福德·比尔 vs 斯塔福·比尔 (prefix 作家 ignored)
+        self.assertIn(("name-variant", "warn"), codes)   # 阿达·洛夫莱斯 vs 艾达·洛夫莱斯 (prefix 作家 ignored)
         self.assertIn(("forbidden", "error"), codes)
         self.assertIn(("term", "warn"), codes)
         self.assertNotIn(("residue", "warn"), codes)  # English inside first-mention parentheses is intended
