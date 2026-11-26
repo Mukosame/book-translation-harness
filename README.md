@@ -150,7 +150,7 @@ The agents translate the whole book; you decide what is right. Every correction 
 | Shipped | |
 |---|---|
 | Language packs | `en`, `zh-Hans` |
-| Pair profiles | `en → zh-Hans` |
+| Pair profiles | `en → zh-Hans`, `zh-Hans → en` |
 
 **Every pair works, given a language pack for the target.** Packs cover typography, number formats, naming standards, layout (RTL, vertical), index collation and navigation labels. Pair profiles add the pair's typical pitfalls. Packs are reviewed once by a native speaker and then reused for every book.
 
