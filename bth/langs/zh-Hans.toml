@@ -1,0 +1,92 @@
+# Language pack: Simplified Chinese (mainland). Copy this file to add a language; keep every key.
+# Read by scripts (check, extract, build, units) and by agents (prompts point here).
+
+tag = "zh-Hans"
+name = "简体中文"
+script = "Hani"            # ISO 15924; key of SCRIPTS in bth/book.py
+quality_tier = "high"      # high | medium | low: model reliability; drives QA sampling and back-translation
+
+[punctuation]
+style = "fullwidth"
+sentence_end = ["。", "？", "！", "……", "”", "」"]
+forbidden_in_text = [",", ";", ":", "?", "!", "(", ")"]   # half-width marks between Chinese characters
+space_between_scripts = false
+
+[quotes]
+primary = ["“", "”"]
+secondary = ["‘", "’"]
+straight_forbidden = true
+
+[titles]
+works = ["《", "》"]       # books, films, periodicals, albums
+nested = ["〈", "〉"]
+
+[numbers]
+decimal_separator = "."
+group_separator = ","
+large_number_units = { "万" = 1e4, "亿" = 1e8 }   # 3,000,000 may legitimately become 300万
+dates = "YYYY年M月D日"
+
+[names]
+standard = "Xinhua (新华社) transliteration; prefer established renderings"
+separator = "·"
+first_mention_pattern = "{target}（{source}）"
+established_sources = ["zh.wikipedia.org", "baike.baidu.com", "book.douban.com (Chinese editions)", "official Chinese names on organisation websites"]
+
+[style]
+register_default = "书面语，面向大众读者的出版物语体"
+reader_address = "你 / 我们 (follow the source)"
+gender_policy = "Use 他/她 as in the source; for generic people prefer 人们/读者 over 他或她"
+translationese_watchlist = ["stacked 被 passives", "long 的…的…的 attributives", "进行 + verb", "overuse of 作为… openers", "too many pronouns (他/它/他们)"]
+
+[checks]
+residue = "script"         # script (source/target scripts differ) | langid (same script: needs `pip install langdetect`)
+residue_max_run = 40       # longest allowed run of source-script letters in a translated segment
+length_warn_z = 2.5        # length-ratio outlier threshold after per-book calibration
+term_match = "exact"       # exact | forms (use glossary target_forms) | ai
+
+[segmentation]
+word_boundaries = "none"   # none | space
+unit_tokens = [1500, 2500] # translation unit size, measured on source tokens
+
+[extract]
+chapter_pattern = '^(第[一二三四五六七八九十百零〇\d]+[章部篇]|序|前言|引言|后记|结语).*$'
+
+[layout]
+direction = "ltr"          # ltr | rtl
+writing_mode = "horizontal-tb"   # horizontal-tb | vertical-rl
+page_progression = "ltr"
+hyphenation = false
+fonts = ["Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "serif"]
+css_extra = "p { text-indent: 2em; margin: 0; line-height: 1.7; } h1, h2, h3 { text-indent: 0; }"
+
+[index]
+order = "keep_source"      # keep_source | resort   (shortcut: resort is not implemented yet)
+
+[nav_labels]
+"Cover" = "封面"
+"Title Page" = "扉页"
+"Halftitle Page" = "半书名页"
+"Half Title" = "半书名页"
+"Navigational Table of Contents" = "目录"
+"Landmarks" = "地标"
+"Start" = "正文"
+"Page List" = "页码列表"
+"Copyright" = "版权页"
+"Copyright Page" = "版权页"
+"Dedication" = "献词"
+"Contents" = "目录"
+"Table of Contents" = "目录"
+"Introduction" = "引言"
+"Preface" = "前言"
+"Foreword" = "序言"
+"Prologue" = "序章"
+"Epilogue" = "尾声"
+"Conclusion" = "结语"
+"Acknowledgements" = "致谢"
+"Acknowledgments" = "致谢"
+"Notes" = "注释"
+"Bibliography" = "参考文献"
+"Further Reading" = "延伸阅读"
+"Index" = "索引"
+"About the Author" = "关于作者"

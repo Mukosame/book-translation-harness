@@ -1,0 +1,66 @@
+# Language pack: English. Used as a source (extraction, number words) and as a target.
+
+tag = "en"
+name = "English"
+script = "Latn"
+quality_tier = "high"
+
+[punctuation]
+style = "halfwidth"
+sentence_end = [".", "?", "!", "…", "”", "’", "\""]
+forbidden_in_text = ["，", "。", "；", "：", "（", "）"]
+space_between_scripts = true
+
+[quotes]
+primary = ["“", "”"]
+secondary = ["‘", "’"]
+straight_forbidden = false
+
+[titles]
+works = ["<i>", "</i>"]    # italics; agents keep the source's inline markup placeholders
+
+[numbers]
+decimal_separator = "."
+group_separator = ","
+large_number_units = {}
+scale_words = { "thousand" = 1e3, "million" = 1e6, "billion" = 1e9, "trillion" = 1e12 }
+skip_patterns = ['\b\d{4}s\b', "['’]\\d0s\\b"]   # decades: "1980s" -> "20世纪80年代" in many targets
+dates = "Month D, YYYY"
+
+[names]
+standard = "Established English renderings (Wikipedia/Wikidata labels)"
+separator = " "
+first_mention_pattern = ""
+established_sources = ["en.wikipedia.org", "Library of Congress catalog", "publisher pages"]
+
+[style]
+register_default = "Clear, idiomatic published non-fiction prose"
+reader_address = "you"
+gender_policy = "Singular they for unspecified people unless the source specifies gender"
+translationese_watchlist = ["missing articles", "calqued word order", "overlong nominal chains"]
+
+[checks]
+residue = "script"
+residue_max_run = 6
+length_warn_z = 2.5
+term_match = "forms"
+
+[segmentation]
+word_boundaries = "space"
+unit_tokens = [1500, 2500]
+
+[extract]
+chapter_pattern = '^(chapter|part|prologue|epilogue|introduction|conclusion|afterword|preface)\b.*$'
+
+[layout]
+direction = "ltr"
+writing_mode = "horizontal-tb"
+page_progression = "ltr"
+hyphenation = true
+fonts = ["Georgia", "serif"]
+css_extra = "p { margin: 0 0 0.6em; line-height: 1.5; hyphens: auto; }"
+
+[index]
+order = "keep_source"
+
+[nav_labels]

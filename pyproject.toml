@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "book-translation-harness"
+version = "0.1.0"
+description = "Agent-agnostic harness for translating whole books with AI agents: extract, spec, translate, QA, build."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = ["lxml>=4.9"]
+
+[project.urls]
+Homepage = "https://github.com/Mukosame/book-translation-harness"
+Issues = "https://github.com/Mukosame/book-translation-harness/issues"
+
+[project.optional-dependencies]
+pdf = ["pymupdf>=1.23"]
+
+[project.scripts]
+bth = "bth.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bth*"]
+
+[tool.setuptools.package-data]
+bth = ["langs/*.toml", "pairs/*.md", "prompts/*.md", "templates/*"]
