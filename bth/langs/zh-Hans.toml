@@ -15,6 +15,7 @@ space_between_scripts = false
 [quotes]
 primary = ["“", "”"]
 secondary = ["‘", "’"]
+unverified_note = "（转译，原文未核实）"   # appended to quotations whose original wording could not be verified
 straight_forbidden = true
 
 [titles]
@@ -60,10 +61,13 @@ hyphenation = false
 fonts = ["Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "serif"]
 css_extra = "p { text-indent: 2em; margin: 0; line-height: 1.7; } h1, h2, h3 { text-indent: 0; }"
 
-[figures]                  # key added under images that contain text
-label = "图中文字："
-pair = "＝"
-sep = "；"
+[figures]                  # labels set into images in place of the source text
+font = "PingFang SC, Hiragino Sans GB, Noto Sans CJK SC, Source Han Sans SC, Microsoft YaHei, sans-serif"
+
+[errata]                   # source_errors = "fix-with-note"
+title = "译者勘误"
+intro = "原书中的以下错误已在译文中改正。"
+inline = "（译者注：{note}）"
 
 [index]
 order = "keep_source"      # keep_source | resort   (shortcut: resort is not implemented yet)
@@ -75,7 +79,7 @@ order = "keep_source"      # keep_source | resort   (shortcut: resort is not imp
 "Half Title" = "半书名页"
 "Navigational Table of Contents" = "目录"
 "Landmarks" = "地标"
-"Start" = "正文"
+"Start" = ["正文", "开始"]
 "Page List" = "页码列表"
 "Copyright" = "版权页"
 "Copyright Page" = "版权页"

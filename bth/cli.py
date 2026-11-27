@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import build, check, extract, figures, report, tasks
-from .book import Book, h8
+from . import build, check, errata, extract, figures, report, tasks
+from .book import Book, h8, read_jsonl
 
 BOOK_TOML = """\
 title_src = {title_src}
@@ -27,6 +27,8 @@ qa_rounds = 2           # QA -> fix loops
 fix_minor = false       # also fix minor issues
 entities = true         # online verification of names/titles/terms before translating (needs web access)
 figures = true          # transcribe and translate text inside images (needs agents that can view images)
+source_errors = "fix-with-note"   # errors in the original (name, date, title, fact): keep | fix-obvious | fix-with-note
+source_error_notes = "appendix"   # fix-with-note: a translator's errata page (appendix) or inline translator's notes
 git_commit = true       # commit after each phase
 report_lang = "en"      # language of QA reports
 register = ""           # override the language pack's default register
@@ -75,6 +77,7 @@ def next_step(book):
     if not book.path("original").exists():
         info = extract.run(book)
         extract.entity_candidates(book)
+        extract.quote_candidates(book)
         _commit(book, f"extract: {info['segments']} segments in {info['chapters']} chapters")
         if info["coverage"] < 0.98:
             return {"action": "attention", "step": "extract", **info,
@@ -116,10 +119,13 @@ def next_step(book):
         if not any(t["round"] == rnd for t in tasks.all_tasks(book, "qa")):
             if rnd == 1:
                 ids = list(orig)
-            else:
+            else:  # revised segments, the segments sharing a title/quotation/term with them, consistency warnings
                 prev = book.path("review", f"fix_r{rnd - 1}.jsonl")
-                ids = sorted({json.loads(x)["id"] for x in prev.read_text("utf-8").splitlines() if x.strip()}) \
-                    if prev.exists() else []
+                fixed = {r["id"] for r in read_jsonl(prev)}
+                issues = read_jsonl(book.path("review", f"qa_r{rnd - 1}.jsonl"))
+                ids = fixed | check.related(book, fixed, [i for i in issues if i["id"] in fixed])
+                ids |= {i["id"] for i in check.run(book) if i["code"] in check.CONSISTENCY}
+                ids = sorted(ids & set(orig))
             if not ids:
                 break
             tasks.plan(book, "qa", ids, rnd)
@@ -127,8 +133,9 @@ def next_step(book):
         if step:
             return step
         qa = book.path("review", f"qa_r{rnd}.jsonl")
-        issues = [json.loads(x) for x in qa.read_text("utf-8").splitlines() if x.strip()] if qa.exists() else []
-        todo = [i for i in issues if i["severity"] in sev]
+        issues = read_jsonl(qa)
+        todo = [i for i in issues if i["severity"] in sev and not i.get("source_error")] + \
+            errata.selected(issues, errata.policy(book))  # source errors follow the project policy, not severity
         if todo and not any(t["round"] == rnd for t in tasks.all_tasks(book, "fix")):
             tasks.plan(book, "fix", sorted({i["id"] for i in todo}), rnd, {"issues": todo})
         step = _dispatch(book, "fix")
@@ -178,6 +185,9 @@ def main(argv=None):
     p.add_argument("phase", choices=tasks.PHASES)
     p.add_argument("--ids", nargs="*")
     p.add_argument("--chapters", nargs="*")
+    p = sub.add_parser("preview", help="render figure previews: label boxes of a task output, or translated overlays")
+    p.add_argument("book")
+    p.add_argument("--task", help="figures task whose (unmerged) output to draw; default: all translated overlays")
     p = sub.add_parser("impact", help="plan revisions for segments affected by glossary changes")
     p.add_argument("book")
     g = p.add_mutually_exclusive_group(required=True)
@@ -239,6 +249,12 @@ def main(argv=None):
         if a.chapters:
             ids = [s for c in a.chapters for s in book.original(c)]
         _out({"planned": tasks.plan(book, a.phase, ids, _next_round(book, a.phase))})
+    elif a.cmd == "preview":
+        if a.task:
+            rows = read_jsonl(tasks.output_path(book, tasks.load(book, a.task)))
+            _out({"previews": figures.preview(book, rows=rows)})
+        else:
+            _out({"previews": figures.preview(book, keys=list(figures.load(book)))})
     elif a.cmd == "impact":
         rows = tasks.changed_glossary_terms(book, a.since) if a.since else [{"source": t} for t in a.terms]
         ids = tasks.impact_ids(book, [r["source"] for r in rows])

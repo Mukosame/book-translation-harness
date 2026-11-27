@@ -32,18 +32,23 @@ $current_block
 - Mistranslations, especially **negation, comparison, causality, condition and modality**.
 - Numbers and formulas.
 - Terminology: does it match the glossary and the context?
+- Quotations: verified ones use the wording in `$book/quotes.csv`; unverified ones carry the marker from the language pack; a title or quotation that recurs is rendered as elsewhere in the book.
 - Logic and coherence.
 - Naturalness of the target language: translationese, the patterns on the language pack's watchlist.
 - Tone, register and form of address: consistent with the style guide?
 - Pronouns and inferred subjects, when the source language drops them.
 - Grammatical gender, when the target language has it.
 - Locale-specific wording (locale is set in `$book_toml`).
-- Type `fig` segments are labels inside an image: check that they are short, consistent with the prose and the glossary, and do not add words the label lacks.
+- Type `fig` segments are labels inside an image: check that they are concise, consistent with the prose and the glossary, and do not add words the label lacks.
+  - Rendered images with the translated labels set in (if this unit has any):
+$figure_previews
+  - Look at each one. Report a label that is cut off, too small to read, overlaps the chart, or leaves original text visible, as category `structure` on the label's segment id; suggest a shorter wording if that would help.
 
 ## Output: JSON Lines, one issue per line, written to `$output`
 ```
 {"id": "<segment id>", "severity": "critical|major|minor", "category": "<one of: omission addition mistranslation negation number terminology logic fluency tone register gender pronoun punctuation locale structure source>", "src": "<short source excerpt>", "tgt": "<short translation excerpt>", "suggestion": "<corrected target text for that excerpt>", "rationale": "<one sentence in $report_lang>", "source_error": false}
 ```
+For errors in the original, add `"obvious": true|false`, `"evidence": "<URL or reasoning>"` and `"note": "<one-sentence translator's note in $lang_to, e.g. the original gives 1987; the correct year is 1978>"`.
 
 **Severity levels**
 - `critical`: the meaning is reversed or wrong, a number is wrong, or a sentence is dropped.
@@ -52,8 +57,8 @@ $current_block
 
 **Other rules**
 - **Errors in the original:** a wrong name, title, date or fact in the source is reported as category `source`, with `"source_error": true` and severity `minor`.
-  - `suggestion` is the correct form, or empty.
-  - The translation follows the original unless the glossary says otherwise.
-  - Typos in the source that the translation silently fixes are not worth reporting.
+  - `suggestion` is the translation as it would read **with the error corrected**, or empty if you are unsure of the correct form.
+  - `obvious`: true only for a slip nobody would dispute (a misspelled name, a wrong year or title confirmed by a reliable source).
+  - Project policy: $source_errors_rule Report errors whatever the policy; the harness decides which are corrected. A translation that already corrected an error on its own is a deviation from the policy unless the policy allows it: report it too.
 - **Minor issues:** $minor_note
 - Report real problems only. Write an empty file if there are none.

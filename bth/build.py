@@ -6,8 +6,9 @@ from html import escape
 
 from lxml import etree
 
-from . import epub, figures
-from .book import PH
+from . import epub, errata, figures
+from .check import glossary
+from .book import PH, read_jsonl
 
 
 def _opf_edit(book):
@@ -20,6 +21,9 @@ def _opf_edit(book):
             el = root.find(f".//{{{epub.DC}}}{tag}")
             if el is not None and value:
                 el.text = value
+        names = {r["source"]: r["target"] for r in glossary(book) if r.get("type") == "org"}
+        for el in root.iterfind(f".//{{{epub.DC}}}publisher"):  # e.g. a publisher with a glossary row
+            el.text = names.get((el.text or "").strip(), el.text)
         lay = tl.get("layout", {})
         spine = root.find(".//{*}spine")
         if spine is not None and (lay.get("page_progression") == "rtl"):
@@ -40,6 +44,20 @@ def _ncx_edit(book):
     return edit
 
 
+def _both(f, g):
+    """Two in-place tree edits, f first."""
+    return lambda tree: (f(tree), g(tree))
+
+
+def _then(f, g):
+    """Two byte edits, f first."""
+    return lambda data: g(f(data))
+
+
+def _bare(text):
+    return re.sub(r"\W+", "", text or "")
+
+
 def _labels_edit(labels):
     """Replace whole text nodes equal to a known label (nav/NCX entries, headings) with its translation."""
     def edit(data):
@@ -48,6 +66,13 @@ def _labels_edit(labels):
             pat = r"\s+".join(map(re.escape, escape(src, quote=False).split()))
             text = re.sub(rf">(\s*){pat}(\s*)<",
                           lambda m: f">{m.group(1)}{escape(local, quote=False)}{m.group(2)}<", text)
+        # Fallback: entries whose punctuation differs from the heading (a converter dropped "：" in an NCX),
+        # and title="…" attributes (OPF guide references).
+        bare = {_bare(k): v for k, v in labels.items() if _bare(k)}
+        text = re.sub(r">(\s*)([^<>]*?\S)(\s*)<", lambda m: f">{m.group(1)}{escape(bare[_bare(m.group(2))], quote=False)}"
+                      f"{m.group(3)}<" if _bare(m.group(2)) in bare else m.group(0), text)
+        text = re.sub(r'(\stitle=")([^"]+)(")', lambda m: f"{m.group(1)}{escape(bare[_bare(m.group(2))])}{m.group(3)}"
+                      if _bare(m.group(2)) in bare else m.group(0), text)
         return text.encode("utf-8")
     return edit
 
@@ -91,6 +116,9 @@ def _doc_edit(book, segs, labels=None):
         title = head.find("{*}title") if head is not None else None
         if title is not None and title.text and labels:  # <head><title> is shown by some readers
             title.text = labels.get(" ".join(title.text.split()), title.text)
+        if title is not None and book.cfg.get("title_tgt") and _bare(book.cfg.get("title_src")) \
+                and _bare(book.cfg["title_src"]) in _bare(title.text):  # the book title (cover blurbs too)
+            title.text = book.cfg["title_tgt"]
         if style and head is not None:
             etree.SubElement(head, f"{{{epub.XHTML}}}style").text = " ".join(style)
     return edit
@@ -116,22 +144,30 @@ def run(book, verify=True):
     for n in names:  # documents outside the spine (nav.xhtml …) still get the target language attributes
         if n.endswith((".xhtml", ".html")) and n not in doc_edits:
             doc_edits[n] = _doc_edit(book, [], labels)
-    fig_docs, fig_other, fig_info = figures.build_edits(book, trans)
-    for n, fn in fig_docs.items():  # after the translations are filled in, so segment xpaths still match
+    fig = figures.build_edits(book, trans)
+    for n, fn in fig["docs"].items():  # after the translations are filled in, so segment xpaths still match
         if n in doc_edits:
-            doc_edits[n] = (lambda f, g: lambda t: (f(t), g(t)))(doc_edits[n], fn)
+            doc_edits[n] = _both(doc_edits[n], fn)
     other = {n: _labels_edit(labels) for n in names if n.endswith((".ncx", ".opf")) or
              (n.endswith((".xhtml", ".html")) and n not in mapping)}
     for n, fn in [(opf, _opf_edit(book))] + [(n, _ncx_edit(book)) for n in names if n.endswith(".ncx")]:
-        other[n] = (lambda f, g: lambda d: g(f(d)))(other[n], fn)  # labels first, then metadata
+        other[n] = _then(other[n], fn)  # labels first, then metadata
+    er = errata.build_edits(book, trans, mapping, skel, opf)
+    for n, fn in er["docs"].items():
+        if n in doc_edits:
+            doc_edits[n] = _both(doc_edits[n], fn)
+    if er["opf"]:
+        other[opf] = _then(other[opf], er["opf"])
+    if fig["manifest"]:
+        other[opf] = _then(other[opf], figures.manifest_edit(opf, fig["manifest"]))
     book.path("dist").mkdir(exist_ok=True)
     tag = book.tgt_lang["tag"]
     name = book.root.name if book.root.name.endswith(f".{tag}") else f"{book.root.name}.{tag}"
     out = book.path("dist", f"{name}.epub")
-    epub.rewrite(skel, out, doc_edits, {**other, **fig_other})
+    epub.rewrite(skel, out, doc_edits, {**other, **fig["other"]}, {**fig["add"], **er["add"]})
     problems, epubcheck = epub.verify(out) if verify else ([], False)
     bilingual(book)
-    return {"output": str(out), "untranslated_segments": untranslated, "images": fig_info, "problems": problems,
+    return {"output": str(out), "untranslated_segments": untranslated, "images": fig["info"], "problems": problems,
             "epubcheck_ran": epubcheck}
 
 
@@ -140,14 +176,9 @@ def bilingual(book):
     orig, trans = book.original(), book.translation()
     notes = {}
     for p in sorted(book.path("review").glob("qa_r*.jsonl")) if book.path("review").exists() else []:
-        for line in p.read_text("utf-8").splitlines():
-            if line.strip():
-                r = json.loads(line)
-                notes.setdefault(r["id"], []).append(f"[{r['severity']}/{r['category']}] {r.get('rationale', '')}")
-    back = {}
-    bt = book.path("review", "backtranslation.jsonl")
-    if bt.exists():
-        back = {r["id"]: r["text"] for r in map(json.loads, filter(str.strip, bt.read_text("utf-8").splitlines()))}
+        for r in read_jsonl(p):
+            notes.setdefault(r["id"], []).append(f"[{r['severity']}/{r['category']}] {r.get('rationale', '')}")
+    back = {r["id"]: r["text"] for r in read_jsonl(book.path("review", "backtranslation.jsonl"))}
     rows = "".join(
         f'<tr id="{sid}"><td><a href="#{sid}">{sid}</a></td><td lang="{book.src_lang["tag"]}">{escape(s["text"])}'
         f'</td><td lang="{book.tgt_lang["tag"]}">{escape(trans.get(sid, {}).get("text", "—"))}</td>'

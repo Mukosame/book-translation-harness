@@ -36,7 +36,9 @@ Your agent starts 10 parallel workers. Every output is checked before it is merg
 | 🔎 **Online name verification** | Agents look up established renderings of people, works and organisations: Wikidata first, then national sources. They also check whether the book already has a published translation, whose title and terms then take priority. |
 | ⚡ **Parallel and safe** | Work is claimed atomically, so N workers can run at once. Each output is validated before it is merged under a lock. Bad output is sent back to the same worker with the exact errors. |
 | 🧪 **Two layers of QA** | **Script checks:** placeholders, numbers (`3,000,000 = 300万 = 3 million`), glossary terms and forbidden variants, punctuation, name consistency, length outliers. **AI review:** a different worker reports issues by severity (critical / major / minor) without editing anything; a fixer then makes minimal edits, and every change is logged. |
-| 🖼️ **Text in images too** | Charts, diagrams and tables saved as pictures are not skipped. Agents that can view images transcribe their labels, which are then translated, checked and reviewed like the rest of the book. A key appears under each figure, or you drop in a redrawn image and it replaces the original. |
+| 🖼️ **Text in images too** | Charts, diagrams and tables saved as pictures are not skipped. Agents that can view images locate and transcribe every label; the labels are translated, checked and reviewed like the rest of the book, then **set back into the image in place of the original text**. Prefer your own redrawn figure? Drop it in and it replaces the original. |
+| 🩹 **One policy for errors in the original** | Wrong names, dates or titles in the book are kept, fixed silently when obvious, or fixed with a translator's note: your choice in `book.toml`, applied the same way by every agent. With notes, the EPUB gets a translator's errata page that links back to each corrected passage. |
+| 📜 **Quotations checked at the source** | When a book quotes an author who wrote in another language, agents look up the original wording and cite it. Verified quotations use the author's own words; unverified ones are marked, never passed off as the original. Titles, quotations and repeated passages are kept identical everywhere they recur. |
 | 🎨 **Original layout preserved** | Translations are written back into the source XHTML. CSS, images, footnote links, index locators and the navigation all survive. TXT, HTML and PDF sources get a clean generated EPUB. |
 | 🌍 **Language rules in data, not code** | Language packs (`bth/langs/*.toml`) and pair profiles (`bth/pairs/*.md`) cover punctuation, quotes, number formats, transliteration, right-to-left and vertical layout, and navigation labels. To add a language, add a file. |
 | ✍️ **You stay in control** | Correct the translation at any level: fix a term in the glossary, reshape the voice through the style guide and examples, or rewrite a sentence directly. `bth` finds the paragraphs affected and redoes only those. Your edits are locked and **never overwritten**. The QA report and bilingual page point you to the passages most worth your attention. |
@@ -47,9 +49,9 @@ Your agent starts 10 parallel workers. Every output is checked before it is merg
 ```mermaid
 flowchart LR
     SRC[/"📖 Source<br/>EPUB · HTML · TXT · PDF"/] --> EX["① Extract<br/><i>segments + stable IDs</i>"]
-    EX --> FIG["Figures<br/><i>read text in images</i>"]
+    EX --> FIG["Figures<br/><i>locate text in images</i>"]
     FIG --> SPEC["② Spec<br/><i>style guide · glossary · examples</i>"]
-    SPEC --> ENT["③ Entities<br/><i>verify names online</i>"]
+    SPEC --> ENT["③ Entities<br/><i>verify names and quotations</i>"]
     ENT --> TR
 
     subgraph PAR ["④ Translate: N agents in parallel"]
@@ -146,7 +148,9 @@ The agents translate the whole book; you decide what is right. Every correction 
 | how one term is rendered | `glossary.csv` | `bth impact --since <rev>` | only the paragraphs containing the term are revised |
 | the voice, register or form of address | `style_guide.md` / `examples.md` | `bth plan … translate --chapters ch05` | try it on one chapter, compare, then widen the scope |
 | one specific sentence | `translation/chNN.md` | `bth next` | the paragraph is locked, and machine passes never touch it again |
-| a chart or table image | save a translated copy in `figures/` | `bth build` | it replaces the original image; the label key is dropped |
+| a label inside a chart | `translation/chNN.md` (its `fig` segment) | `bth build` | the new wording is set into the image |
+| a whole figure | save a redrawn copy in `figures/` | `bth build` | it replaces the original image |
+| a quotation | `quotes.csv` | `bth impact --terms …` | the verified wording is used wherever it occurs |
 | a rule for a whole language | `bth/langs/<tag>.toml` | `bth build` | every book in that language benefits |
 
 ## 🌍 Languages
@@ -182,7 +186,7 @@ books/my-book/
 - **Known limits:**
   - the index is not re-sorted by target-language collation;
   - PDF headings come from font-size heuristics;
-  - text in images is translated as a key under the image, not redrawn;
+  - text in images is set over the original on a flat background, so labels on photos are left to you;
   - token counts are estimates;
   - file locking is POSIX-only.
 

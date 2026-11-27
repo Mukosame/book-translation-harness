@@ -26,4 +26,6 @@ Write `$output` in the segment format:
 - Include **only the segments you changed**, each with its unchanged header line `<!-- id type -->` followed by the full revised text.
 - Keep every placeholder exactly as in the source.
 
+Issues with `"source_error": true` are errors in the original book. Project policy: $source_errors_rule They are in your list because the policy asks for the correction: apply the `suggestion`, and change nothing else about them.
+
 If you judge that an issue is not a real problem, leave the segment out. The harness logs before/after for every change.

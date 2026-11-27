@@ -2,6 +2,7 @@
 import contextlib
 import fcntl  # shortcut: POSIX-only file locking, add msvcrt fallback if Windows support is needed
 import hashlib
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -15,6 +16,10 @@ SCRIPTS = {  # Unicode ranges per ISO 15924 script, enough for residue/punctuati
     "Hani": "㐀-䶿一-鿿", "Jpan": "぀-ヿ㐀-䶿一-鿿",
     "Hang": "가-힯ᄀ-ᇿ",
 }
+
+
+def read_jsonl(path):
+    return [json.loads(x) for x in path.read_text("utf-8").splitlines() if x.strip()] if path.exists() else []
 
 
 def h8(text):

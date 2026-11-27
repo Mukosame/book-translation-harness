@@ -16,7 +16,8 @@ You are the **orchestrator**. The `bth` CLI does every deterministic step and va
    - the target title, if known;
    - register and form of address;
    - whether names may be verified online (`entities` in `book.toml`);
-   - whether your subagents can view images (`figures` in `book.toml`; needed to translate text inside charts and tables).
+   - whether your subagents can view images (`figures` in `book.toml`; needed to translate text inside charts and tables);
+   - how to treat errors in the original (`source_errors`: `keep`, `fix-obvious`, or `fix-with-note` with an errata page or inline translator's notes).
 4. If `bth init` reports a missing language pack, draft `bth/langs/<tag>.toml` from `bth/langs/zh-Hans.toml` and ask the user to review it.
 
 ## Loop
@@ -43,4 +44,5 @@ The user can change the translation through three levers:
 1. **Glossary:** edit `glossary.csv`, then run `bth impact <book> --since <rev>` (or `--terms …`), then `bth next`.
 2. **Style:** edit `style_guide.md` or `examples.md`, run `bth plan <book> translate --chapters <ids>` on a sample chapter, compare the output, then widen the scope.
 3. **Direct edits:** edit `translation/*.md`. These segments are locked automatically. Rebuild with `bth next`.
-4. **Images:** save a translated copy of an image under `<book_dir>/figures/` with the same file name, then rebuild. `review/QA_REPORT.md` lists the images that contain text.
+4. **Images:** labels inside images are `fig` segments and are set into the image at build time; correct them like any segment. For a redrawn figure, save it under `<book_dir>/figures/` with the same file name, then rebuild. `review/QA_REPORT.md` lists the images that contain text.
+5. **Quotations:** edit `quotes.csv` (verified wording with an evidence URL), then `bth impact <book> --terms "<quote excerpt>"` and `bth next`.

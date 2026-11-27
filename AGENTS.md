@@ -38,7 +38,8 @@ Paste this into each worker agent and fill in the placeholders:
 
 - **Never edit `original/`, `translation/` or `work/tasks/` by hand.** The harness merges outputs under a lock, keeps an audit trail, and protects human edits.
 - **Entity verification needs web access.** The prompts say how to proceed without it. Turn the phase off with `entities = false` in `book.toml` if needed.
-- **The `figures` phase needs agents that can view images.** They transcribe the labels inside charts, diagrams and tables saved as pictures. Turn it off with `figures = false` if your agents cannot view images.
+- **The `figures` phase needs agents that can view images.** They transcribe the labels inside charts, diagrams and tables saved as pictures and mark where each sits, so the build can set the translation in place. Turn it off with `figures = false` if your agents cannot view images. Install PyMuPDF to give them rendered previews.
+- **Quotation verification** (the `quotes` scope of the entities phase) also needs web access; without it every quotation stays `unverified` and is marked in the translation.
 - **Report counts by running commands** such as `bth status` and `bth check`, not from memory.
 
 ## Commands
@@ -54,15 +55,17 @@ Paste this into each worker agent and fill in the placeholders:
 | `bth build <book>` | Write `dist/<book>.<lang>.epub` and `dist/bilingual.html`, and verify them. |
 | `bth plan <book> translate --chapters ch05` | Re-translate a scope, e.g. after a style-guide change. Human edits are kept. |
 | `bth impact <book> --since <git-rev>` or `--terms "policy"` | Plan revisions for the segments affected by glossary changes. |
+| `bth preview <book> [--task ID]` | Render figure previews: the label boxes of a figures task output, or all translated overlays. |
 
 ## Human corrections
 
 People can correct the translation at any point, with three levers:
-- `glossary.csv`, followed by `bth impact`;
+- `glossary.csv` (and `quotes.csv` for quotations), followed by `bth impact`;
+- `errata.csv`, to reword or omit a translator's note about an error in the original (policy: `source_errors` in `book.toml`);
 - `style_guide.md` / `examples.md`, followed by `bth plan … translate --chapters …`;
 - direct edits in `translation/*.md`.
 
-For images, a translated copy saved under `figures/` with the original file name replaces the image at build time.
+Image labels are segments too (`fig`), so they are corrected the same way. For a fully redrawn image, save it under `figures/` with the original file name; it replaces the overlay at build time.
 
 Directly edited segments are detected automatically and locked against future machine merges. Then run `bth next` again. The full method is in `docs/SOP.md`.
 

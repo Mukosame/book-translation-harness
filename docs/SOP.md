@@ -70,7 +70,7 @@ Turing asked a simple question: {{1}}can machines think{{/1}}?{{2/}}
 |---|---|---|---|
 | 0 | `bth init` | user | language pack exists (otherwise draft one: appendix) |
 | 1 | extract | script | coverage ≥ 98% of visible text |
-| 1b | figures | N agents that can view images (`figures = true`) | one validated line per image; labels merged as `fig` segments |
+| 1b | figures | N agents that can view images (`figures = true`) | one validated line per image, boxes inside the image; labels merged as `fig` segments |
 | 2 | spec (+ entities) | 1 spec agent; 3 entity agents with web access | three spec files valid; user checkpoint on the spec (recommended) |
 | 3 | translate | N agents | every segment merged and structurally valid |
 | 4 | QA → fix (up to `qa_rounds`) | N QA agents, cross-assigned; fixers | no unresolved critical issues |
@@ -96,11 +96,12 @@ Every source is turned into an EPUB skeleton: EPUBs are used as they are, and ot
 
 Charts, diagrams, maps and tables are often pictures. Their labels are pixels, so extraction cannot see them and they would reach the reader untranslated.
 
-- **Scan (script):** every image in the spine is listed in `work/figures.json`, anchored after the segment that precedes it, and copied to `work/images/` for viewing. Files under 2 KB (rules, ornaments) are skipped.
-- **Transcribe (agents that can view images):** one JSON line per image, with its `kind` (chart, table, photo, cover …) and `items`, the labels a reader needs. Numbers, units and text already in the target language are left out.
+- **Scan (script):** every image in the spine is listed in `work/figures.json`, anchored after the segment that precedes it, and copied to `work/images/` for viewing. Files under 2 KB (rules, ornaments) are skipped. The manifest cover image is listed too; its text is the title and author (`book.toml`), so it is not transcribed, only replaced by a translated copy in `figures/`.
+- **Locate and transcribe (agents that can view images):** one JSON line per image, with its `kind` (chart, table, photo, cover …) and its `labels`. Each label has its text, a pixel `box` around the printed text, an optional `space` the translation may use (free background only), `align`, `rotate`, `color`, `background` and `weight`. Numbers, units and text already in the target language are left out. Agents check their boxes on rendered previews (`bth preview <book> --task <id>`, needs PyMuPDF) before `bth done`.
 - **Merge:** the labels go into `original/` as `fig` segments right after the anchor, and non-empty `alt` text as an `alt` segment. From there they are translated, checked against the glossary and reviewed like any other segment, and human edits lock them in the same way.
-- **Build:** under each image with translated labels, the build adds a key such as `图中文字：Revenue＝收入；Costs＝成本`. The format comes from the language pack's `[figures]` section. Translated `alt` text replaces the original.
-- **Human correction:** save a translated copy of an image under `figures/` with the same file name. The build swaps it in and drops the key. `QA_REPORT.md` lists every image with text.
+- **Build: translated in place.** For each image with translated labels, the build writes an SVG next to it: the original image, each label's box covered with its background colour, and the translation set in the label's space, shrunk or wrapped to fit. The `<img>` points to that SVG, so the page layout and CSS stay as they were. The font comes from the language pack's `[figures]` section; translated `alt` text replaces the original.
+- **Visual QA:** QA units that contain `fig` segments get rendered previews of their images; reviewers report labels that are cut off, too small, overlapping or leaving original text visible.
+- **Human correction:** edit a label's translation like any segment, or save a fully translated copy of the image under `figures/` with the same file name; the build then uses it instead of the overlay. `QA_REPORT.md` lists every image with text.
 - Turn the phase off with `figures = false` if your agents cannot view images.
 
 ### 2. Spec
@@ -120,6 +121,8 @@ Entity agents then verify names, works and organisations online:
 3. official names.
 
 They also check whether **the book already has a translation** in the target language, via WorldCat and national library catalogues; if it does, its title and key terms win. Approved rows are only overwritten by approved rows.
+
+**Quotations** are a fourth entity scope. When the book quotes someone who wrote in another language, the source text is already a translation, and translating it again drifts from the author's words. The harness lists quoted spans and block quotations (`work/quotes.tsv`); an agent finds the original wording online and writes `quotes.csv` (`id, quote, author, work, lang, original, use, status, evidence, note`). A `verified` row needs the original wording and an evidence URL. Translators must use `use` verbatim (the original when it is in the target language, or a published translation); quotations left `unverified` are never presented as the author's words and carry the language pack's `quotes.unverified_note`. `quotes.csv` is a human lever like the glossary.
 
 Checkpoint: the user confirms the title, core terms, register and the examples. This is the cheapest high-impact human touchpoint.
 
@@ -146,6 +149,8 @@ Checkpoint: the user confirms the title, core terms, register and the examples. 
 | glossary | approved `target` (or `target_forms`) used; no `forbidden` variant |
 | punctuation / quotes | punctuation and quote rules from the language pack |
 | names | one rendering per source name, from the first-mention pattern |
+| consistency | identical source segments get identical translations; a quotation that recurs is rendered the same way; a title in title marks (《》) follows its glossary row everywhere, and a recurring title without a row is flagged |
+| quotations | verified quotations use the `use` wording from `quotes.csv`; unverified ones carry the unverified marker |
 
 **AI QA:**
 - **Cross-assigned:** a QA worker never reviews units it translated.
@@ -157,7 +162,17 @@ Checkpoint: the user confirms the title, core terms, register and the examples. 
 | major | skewed meaning, wrong term, clearly unnatural | must fix or justify |
 | minor | wording, punctuation, mild translationese | fixed only if `fix_minor = true` |
 
-**Fixing:** fixers apply minimal edits to critical and major issues, and the harness logs before/after. QA then re-runs on the changed segments, up to `qa_rounds`.
+**Fixing:** fixers apply minimal edits to critical and major issues, and the harness logs before/after. QA then re-runs, up to `qa_rounds`, on the changed segments **plus every segment that shares a title, a quotation, or a fixed issue's glossary term with them, plus every segment with a consistency warning**, so a fix in one place cannot leave the other places out of step.
+
+**Errors in the original** (a wrong name, date, title or fact) follow one project-wide policy, `source_errors` in `book.toml`, so translators and fixers cannot disagree:
+
+| `source_errors` | Translators | Fixers | Reader sees |
+|---|---|---|---|
+| `keep` | translate as printed | never correct | the original's wording; errors are listed only in `QA_REPORT.md` |
+| `fix-obvious` | translate as printed | silently correct slips QA marks `obvious` | corrected slips; debatable cases as printed |
+| `fix-with-note` (default) | translate as printed | correct every error QA backs with evidence | each correction documented: a translator's errata page linked to every passage (`source_error_notes = "appendix"`), or a translator's note after the passage (`"inline"`) |
+
+QA reports every suspected error with `obvious`, `evidence` and a target-language `note`, whatever the policy; only the fix phase applies corrections, and only those the policy selects. Entity agents follow the same rule: corrected glossary rows carry a note starting `source error:`, which also goes into the errata. Documented corrections are kept in `errata.csv`, where a person can reword a note or set `status = omit`. `QA_REPORT.md` shows each suspected error as corrected, kept as printed, or not yet corrected although the policy asks for it.
 
 **Report:** `review/QA_REPORT.md` lists:
 - counts and fix rates;
@@ -195,7 +210,7 @@ Lessons with general value belong in the glossary, the style guide, the pair pro
 4. The book is verified structurally, and with epubcheck when it is on PATH.
 5. `dist/bilingual.html` is generated as well.
 
-Untranslated segments keep their source text, and their count is reported. Image keys and replacement images are applied as described in 1b.
+Untranslated segments keep their source text, and their count is reported. Image overlays and replacement images are applied as described in 1b.
 
 ### 7. Release and errata
 
@@ -223,7 +238,7 @@ Untranslated segments keep their source text, and their count is reported. Image
 
 - Index re-sorting by target-language collation is not implemented yet (`order = "keep_source"`).
 - PDF extraction uses font-size heuristics. It does not handle footnotes or images.
-- Text inside images is translated as a key under the image, not redrawn in the image; text in inline `<svg>` is not extracted.
+- Image text is set over the original with estimated text widths (no font metrics), on a flat background colour; labels on photos or gradients are left to a person. Text in inline `<svg>` and in WebP/SVG image files is not handled. Overlays embed the image (base64), so the EPUB grows by about a third of the image sizes.
 - Token counts are estimated, not tokenised.
 - Locking uses POSIX `fcntl`; there is no Windows support yet.
 - Source-side glossary matching is a case-insensitive substring match; there is no stemming for highly inflected source languages.

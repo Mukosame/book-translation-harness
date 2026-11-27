@@ -14,6 +14,7 @@ space_between_scripts = true
 [quotes]
 primary = ["“", "”"]
 secondary = ["‘", "’"]
+unverified_note = " [retranslated; original wording not verified]"   # appended to quotations whose original could not be verified
 straight_forbidden = false
 
 [titles]
@@ -60,10 +61,13 @@ hyphenation = true
 fonts = ["Georgia", "serif"]
 css_extra = "p { margin: 0 0 0.6em; line-height: 1.5; hyphens: auto; }"
 
-[figures]                  # key added under images that contain text
-label = "Text in the image: "
-pair = " = "
-sep = "; "
+[figures]                  # labels set into images in place of the source text
+font = "Helvetica Neue, Helvetica, Arial, Liberation Sans, sans-serif"
+
+[errata]                   # source_errors = "fix-with-note"
+title = "Translator's Errata"
+intro = "The following errors in the original have been corrected in this translation."
+inline = " [Translator's note: {note}]"
 
 [index]
 order = "keep_source"

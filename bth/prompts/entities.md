@@ -17,7 +17,9 @@
 
    Search in both languages.
 3. **Prioritise:** handle well-known items and published works first. For obscure people with no established form, apply the transliteration standard and flag only clear errors.
-4. **Report errors in the original** (e.g. a misnamed person) in `note`, with the correct form as `target`.
+4. **Errors in the original** (e.g. a misnamed person). Project policy: $source_errors_rule
+   - Under `keep`, `target` renders the name as printed; describe the error in `note`.
+   - Otherwise `target` is the correct form, and `note` starts with `source error:` followed by a one-sentence translator's note in $lang_to (it goes into the errata).
 5. **If you have no web access**, still give your best rendering, but write `unverified` in `evidence` and set `status` to `proposed`.
 
 ## Output

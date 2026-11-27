@@ -11,9 +11,9 @@ import subprocess
 import sys
 import time
 
-from . import figures
+from . import errata, figures
 from .book import PKG, h8, parse_segments, dump_segments, tokens
-from .check import GLOSSARY_COLUMNS, glossary, structural, term_hits
+from .check import GLOSSARY_COLUMNS, QUOTE_COLUMNS, glossary, quotes, structural, term_hits
 
 PHASES = ["figures", "spec", "entities", "translate", "qa", "fix", "revise", "backtranslate"]
 SEVERITIES = {"critical", "major", "minor"}
@@ -22,7 +22,13 @@ CATEGORIES = {"omission", "addition", "mistranslation", "negation", "number", "t
 STALE_CLAIM_S = 3600  # shortcut: fixed claim timeout; make configurable if workers run longer than an hour
 BTH = shutil.which("bth") or f"{sys.executable} -m bth"  # same interpreter if bth is not on PATH
 ENTITY_SCOPES = {"people": "people's names", "titles": "titles of books, articles, films, albums, periodicals",
-                 "terms": "terms, organisations, places, events, projects"}
+                 "terms": "terms, organisations, places, events, projects",
+                 "quotes": "direct quotations originally written in another language"}
+
+
+def _is_quotes(t):
+    """The entities task for quotations has its own prompt and output (quotes.csv)."""
+    return t["phase"] == "entities" and t["ids"] == ["quotes"]
 
 
 def _dir(book):
@@ -140,7 +146,17 @@ def render(book, t):
     context = "\n".join(f"{i}\nSOURCE: {orig[i]['text']}\nTRANSLATION: {trans[i]['text'] if i in trans else '(not yet translated)'}"
                         for i in ids[max(start - 2, 0):start]) if segs else ""
     context = context or "(start of book)"
+    qrows = [r for r in quotes(book) if r.get("id") in set(t["ids"])]
+    qcsv = io.StringIO()
+    if qrows:
+        w = csv.DictWriter(qcsv, QUOTE_COLUMNS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(qrows)
+    if _is_quotes(t) and not (book.work / "quotes.tsv").exists():  # projects extracted before quotes existed
+        from .extract import quote_candidates
+        quote_candidates(book)
     issues = t["extra"].get("issues", [])
+    fig_keys = figures.figure_keys(book, t["ids"]) if t["phase"] == "qa" else []
     v = {
         "book": str(book.root), "task": t["id"], "phase": t["phase"], "output": str(output_path(book, t)),
         "lang_from": book.cfg["lang"]["from"], "lang_to": book.cfg["lang"]["to"],
@@ -164,10 +180,17 @@ def render(book, t):
         else "they are not fixed automatically in this project (`fix_minor = false`); report one only if it clearly "
              "hurts readability, never as a matter of taste.",
         "figures": figures.prompt_list(book, t["ids"]) if t["phase"] == "figures" else "",
+        "preview_cmd": f"{BTH} preview {book.root} --task {t['id']}",
+        "figure_previews": "\n".join(f"    - `{p}`" for p in figures.preview(book, fig_keys)) or "    - (none)",
+        "quote_rows": qcsv.getvalue() or "(no verified-quotation entries for this unit)",
+        "quote_candidates": str(book.work / "quotes.tsv"), "quote_columns": ",".join(QUOTE_COLUMNS),
+        "unverified_note": book.tgt_lang.get("quotes", {}).get("unverified_note", "").strip(),
+        "source_errors_rule": errata.rule(book),
         "report_lang": book.opt.get("report_lang", "en"), "templates": str(PKG / "templates"), "done_cmd": f"{BTH} done {book.root} {t['id']}",
     }
     common = string.Template((PKG / "prompts" / "_common.md").read_text("utf-8")).safe_substitute(v)
-    body = string.Template((PKG / "prompts" / f"{t['phase']}.md").read_text("utf-8")).safe_substitute(v)
+    name = "quotes" if _is_quotes(t) else t["phase"]
+    body = string.Template((PKG / "prompts" / f"{name}.md").read_text("utf-8")).safe_substitute(v)
     return body + "\n\n" + common
 
 
@@ -215,6 +238,40 @@ def _validate_glossary_csv(text):
     return rows, []
 
 
+def _validate_quotes_csv(text, orig):
+    reader = csv.DictReader(io.StringIO(text))
+    missing = {"id", "quote", "status", "evidence"} - set(reader.fieldnames or [])
+    if missing:
+        return None, [f"quotes CSV lacks columns {sorted(missing)}; expected header: {','.join(QUOTE_COLUMNS)}"]
+    rows, errors = list(reader), []
+    for n, r in enumerate(rows, 2):
+        if r.get("id") not in orig:
+            errors.append(f"row {n}: id {r.get('id')!r} is not a segment id")
+        if r.get("status") not in ("verified", "unverified"):
+            errors.append(f"row {n}: status must be verified or unverified")
+        elif r["status"] == "verified" and not (re.match(r"^https?://", r.get("evidence") or "") and r.get("original")):
+            errors.append(f"row {n}: a verified quotation needs the original wording and an evidence URL")
+    return rows, errors
+
+
+def merge_quotes(book, rows):
+    """quotes.csv keyed by (id, quote); verified rows are only replaced by verified rows."""
+    p = book.path("quotes.csv")
+    cur = list(csv.DictReader(io.StringIO(p.read_text("utf-8")))) if p.exists() else []
+    index = {(r["id"], r["quote"]): r for r in cur}
+    for r in rows:
+        old = index.get((r["id"], r["quote"]))
+        if old is None:
+            cur.append(r)
+            index[(r["id"], r["quote"])] = r
+        elif old.get("status") != "verified" or r.get("status") == "verified":
+            old.update({k: v for k, v in r.items() if v})
+    with p.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, QUOTE_COLUMNS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(cur)
+
+
 def merge_glossary(book, rows):
     p = book.path("glossary.csv")
     cur = list(csv.DictReader(io.StringIO(p.read_text("utf-8")))) if p.exists() else []
@@ -251,6 +308,11 @@ def done(book, tid):
                     merge_glossary(book, [])  # normalise header/column order
         elif not out.exists():
             errors.append(f"output file not found: {out}")
+        elif _is_quotes(t):
+            rows, errors = _validate_quotes_csv(out.read_text("utf-8"), book.original())
+            if not errors:
+                merge_quotes(book, rows)
+                info["rows"] = len(rows)
         elif t["phase"] == "entities":
             rows, errors = _validate_glossary_csv(out.read_text("utf-8"))
             if not errors:
@@ -265,7 +327,7 @@ def done(book, tid):
                     rows.append((n, json.loads(line)))
                 except json.JSONDecodeError as e:
                     errors.append(f"line {n}: invalid JSON ({e})")
-            errors += figures.validate(rows, t["ids"])
+            errors += figures.validate(book, rows, t["ids"])
             if not errors:
                 figures.merge(book, [r for _, r in rows])
                 info["images"] = len(rows)

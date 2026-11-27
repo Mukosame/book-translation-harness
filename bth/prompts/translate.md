@@ -19,6 +19,15 @@ $glossary_rows
   - Fixed renderings in the style guide win over the glossary for those places.
   - If markup splits a glossary term, keep the term whole and move the placeholder pair to the nearest natural phrase.
 
+## Quotations in this unit (from `$book/quotes.csv`)
+```
+$quote_rows
+```
+- `verified` with a `use` value: write the quotation exactly as `use`, even if your own translation would differ.
+- `verified` without `use`: translate from `original` (the author's own words), not from the $lang_from text.
+- `unverified`: the original wording could not be found. Translate the $lang_from text, and never present it as the author's original words: append `$unverified_note` right after the quotation's closing mark.
+- A quotation, title or sentence that recurs (on the cover and in a chapter, as an epigraph and in the text) is translated identically everywhere; follow the glossary and the style guide for it.
+
 ## Preceding context (the two segments before this unit, for continuity; do not output)
 $context
 
@@ -36,9 +45,10 @@ Write `$output` in exactly the same segment format:
 - **Placeholders:** `{{n}}…{{/n}}` and `{{n/}}` stand for markup (italics, links, note markers). `{{i}}…{{/i}}` adds italics the source lacks; use it only where the target pack's `titles.works` asks for it.
   - Every placeholder in a source segment must appear in its translation exactly once, unchanged.
   - A pair must keep wrapping the translation of the same phrase. It may move with that phrase when word order requires, but pairs must never cross.
+- $source_errors_rule Use the glossary's rendering where it has one.
 - **Completeness:** translate everything; never summarise or skip. Keep the author's tone, irony and asides.
 - **Kept in the original language:** bibliographic data (authors, titles of cited works in citations, publishers, years, pages, URLs). Translate the surrounding prose.
 - **Index entries:** translate them, and keep locators and placeholders exactly.
-- **Image text:** type `fig` segments are labels printed inside an image (axis titles, legends, callouts, table cells), and `alt` is an image description. Translate `fig` as short labels, using the same terms as the prose and the glossary.
+- **Image text:** type `fig` segments are labels printed inside an image (axis titles, legends, callouts, table cells), and `alt` is an image description. Translate `fig` as concise labels, using the same terms as the prose and the glossary. The build sets them into the image in the original label's place, shrinking long ones, so prefer the shortest natural wording (standard abbreviations are fine).
 - **Text only:** the output contains translation text only (no comments, notes, markdown fences or explanations).
 - **Before running done**, check that the placeholder multiset of each segment matches its source.

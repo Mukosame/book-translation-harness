@@ -56,6 +56,16 @@ def spine_docs(z):
             for r in opf.iter("{*}itemref") if r.get("idref") in items]
 
 
+def cover_image(z):
+    """Zip name of the manifest cover image (EPUB 3 properties="cover-image" or EPUB 2 <meta name="cover">), or None."""
+    op = opf_path(z)
+    opf = etree.fromstring(z.read(op))
+    meta = next((m.get("content") for m in opf.iter("{*}meta") if m.get("name") == "cover"), None)
+    href = next((i.get("href") for i in opf.iter("{*}item")
+                 if "cover-image" in (i.get("properties") or "").split() or (meta and i.get("id") == meta)), None)
+    return posixpath.normpath(posixpath.join(posixpath.dirname(op), href)) if href else None
+
+
 def _skipped(el):
     for a in el.iterancestors():
         if local(a) in SKIP:
@@ -147,8 +157,9 @@ def _fill(el, text, shells):
     add_text(text[pos:])
 
 
-def rewrite(src, dst, doc_edits, other_edits=None):
-    """Copy an EPUB, replacing spine docs via doc_edits[name](tree) and any file via other_edits[name](bytes)."""
+def rewrite(src, dst, doc_edits, other_edits=None, add=None):
+    """Copy an EPUB, replacing spine docs via doc_edits[name](tree) and any file via other_edits[name](bytes);
+    add: {name: bytes} for new files."""
     other_edits = other_edits or {}
     tmp = str(dst) + ".tmp"
     with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w") as zout:
@@ -164,6 +175,8 @@ def rewrite(src, dst, doc_edits, other_edits=None):
                 data = other_edits[name](data)
             zout.writestr(zin.getinfo(name), data,
                           compress_type=zipfile.ZIP_STORED if name == "mimetype" else zipfile.ZIP_DEFLATED)
+        for name, data in (add or {}).items():
+            zout.writestr(name, data, compress_type=zipfile.ZIP_DEFLATED)
     shutil.move(tmp, dst)
 
 

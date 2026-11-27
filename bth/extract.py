@@ -10,7 +10,7 @@ import shutil
 from html import escape
 
 from . import epub
-from .book import dump_segments
+from .book import PH, dump_segments
 
 
 def _paragraphs_to_body(chapters):
@@ -108,8 +108,10 @@ def from_html(path):
 
 def entity_candidates(book, limit=600):
     """Frequent capitalised word sequences in the source -> work/entities.tsv (input for entity agents)."""
+    from .check import title_spans
     counts, lower = collections.Counter(), collections.Counter()
     for s in book.original().values():
+        counts.update(title_spans(book, s["text"]))  # titles in title marks (《》 …), any script
         text = re.sub(r"\{\{/?\d+/?\}\}", " ", s["text"])
         lower.update(re.findall(r"\b[a-z][\w'’\-]+", text))
         # shortcut: capitalisation heuristic only works for Latin/Cyrillic/Greek sources; CJK sources rely on
@@ -121,6 +123,19 @@ def entity_candidates(book, limit=600):
     rows = [f"{k}\t{n}" for k, n in counts.most_common(limit)
             if (n > 1 or " " in k) and (" " in k or lower[k.lower()] < n)]
     (book.work / "entities.tsv").write_text("candidate\tcount\n" + "\n".join(rows), "utf-8")
+    return len(rows)
+
+
+def quote_candidates(book, limit=800):
+    """Quoted spans and block quotations -> work/quotes.tsv (input for the quotation verification agent)."""
+    from .check import quote_spans
+    rows = []
+    for sid, s in book.original().items():
+        found = quote_spans(book, s["text"])
+        if s["type"] == "blockquote" and not found:
+            found = [re.sub(r"\s+", " ", PH.sub("", s["text"])).strip()[:300]]
+        rows += [f"{sid}\t{q}" for q in found]
+    (book.work / "quotes.tsv").write_text("id\tquote\n" + "\n".join(rows[:limit]), "utf-8")
     return len(rows)
 
 

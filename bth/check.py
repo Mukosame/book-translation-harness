@@ -5,10 +5,13 @@ import io
 import re
 import statistics
 
-from .book import PH, h8, placeholders, script_re
+from .book import PH, h8, placeholders, script_re, tokens
 
 GLOSSARY_COLUMNS = ["source", "target", "target_forms", "type", "context", "forbidden", "locale",
                     "first_mention", "status", "evidence", "note"]
+QUOTE_COLUMNS = ["id", "quote", "author", "work", "lang", "original", "use", "status", "evidence", "note"]
+QUOTE_MIN_TOKENS = 8  # shorter quoted spans are phrases or scare quotes, not quotations
+CONSISTENCY = ("inconsistent", "quote-variant", "title", "quote", "quote-unmarked")  # codes that join QA round 2
 
 
 def glossary(book, approved_only=True):
@@ -19,6 +22,86 @@ def glossary(book, approved_only=True):
     rows = list(csv.DictReader(io.StringIO(p.read_text("utf-8"))))
     return [r for r in rows if (not approved_only or r.get("status") == "approved")
             and (not r.get("locale") or r["locale"] == locale)]
+
+
+def quotes(book):
+    p = book.path("quotes.csv")
+    return list(csv.DictReader(io.StringIO(p.read_text("utf-8")))) if p.exists() else []
+
+
+def spans(text, marks, min_tokens=1):
+    """Text between an opening and a closing mark (《…》, “…”), placeholders removed."""
+    if len(marks) < 2 or any("{{" in m for m in marks[:2]):
+        return []  # shortcut: titles marked by italics (placeholders) are not detected
+    o, c = map(re.escape, marks[:2])
+    return [m.strip() for m in re.findall(rf"{o}([^{o}{c}]+){c}", PH.sub("", text)) if tokens(m.strip()) >= min_tokens]
+
+
+def title_spans(book, text):
+    return spans(text, book.src_lang.get("titles", {}).get("works", []))
+
+
+def quote_spans(book, text):
+    return spans(text, book.src_lang.get("quotes", {}).get("primary", []), QUOTE_MIN_TOKENS)
+
+
+def _norm(text):
+    return re.sub(r"\s+", " ", PH.sub("", text)).strip()
+
+
+def related(book, ids, issues=()):
+    """Segments sharing a title, a quotation, or an issue's glossary term with any of ids (QA round 2 scope)."""
+    orig = book.original()
+    keys = {k for i in ids if i in orig for k in title_spans(book, orig[i]["text"]) + quote_spans(book, orig[i]["text"])}
+    excerpts = " ".join(i.get("src", "") for i in issues)
+    keys |= {r["source"] for r in term_hits(glossary(book, approved_only=False), excerpts)}
+    return {sid for sid, s in orig.items() if any(k in PH.sub("", s["text"]) for k in keys)}
+
+
+def consistency(book, orig, trans, add):
+    """Repeated source text, repeated quotations and titles must be rendered the same way everywhere;
+    verified quotations must use their established wording, unverified ones must be marked."""
+    tl = book.tgt_lang
+    groups = collections.defaultdict(list)
+    for sid, s in orig.items():
+        if sid in trans and len(_norm(s["text"])) >= 4:  # shorter repeats ("Note", "1") may differ by context
+            groups[_norm(s["text"])].append(sid)
+    for sids in groups.values():
+        if len({_norm(trans[s]["text"]) for s in sids}) > 1:
+            for s in sids:
+                add(s, "warn", "inconsistent", f"same source as {[x for x in sids if x != s][:5]}, translated differently")
+    rows = {r["source"]: r for r in glossary(book, approved_only=False)}
+    tmarks = tl.get("quotes", {}).get("primary", [])
+    for kind, find in (("quote-variant", quote_spans), ("title", title_spans)):
+        where = collections.defaultdict(list)
+        for sid, s in orig.items():
+            for k in set(find(book, s["text"])):
+                where[k].append(sid)
+        for k, sids in where.items():
+            done = [s for s in sids if s in trans]
+            if kind == "quote-variant" and len(done) > 1:  # the quoted renderings must share at least one form
+                if not set.intersection(*(set(spans(trans[s]["text"], tmarks)) for s in done)):
+                    for s in done:
+                        add(s, "warn", kind, f"quotation {k[:30]!r} also in {[x for x in done if x != s][:5]}, "
+                                             "translated differently")
+            elif kind == "title" and (r := rows.get(k)):
+                forms = [r["target"]] + [f for f in r.get("target_forms", "").split(";") if f]
+                for s in done:
+                    if not any(f in _norm(trans[s]["text"]) for f in forms):
+                        add(s, "warn", kind, f"title {k!r} should be rendered {r['target']!r} as everywhere else")
+            elif kind == "title" and len(sids) > 1:
+                add(sids[0], "warn", "title-unlisted",
+                    f"title {k!r} occurs in {len(sids)} segments but has no glossary row; add one to keep it consistent")
+    note = tl.get("quotes", {}).get("unverified_note", "")
+    for r in quotes(book):
+        sid = r.get("id")
+        if sid not in trans:
+            continue
+        tgt = _norm(trans[sid]["text"])
+        if r.get("status") == "verified" and r.get("use") and _norm(r["use"]) not in tgt:
+            add(sid, "warn", "quote", f"verified quotation should read {r['use'][:60]!r}")
+        elif r.get("status") != "verified" and note and note.strip() not in tgt:
+            add(sid, "warn", "quote-unmarked", f"unverified quotation must carry {note.strip()!r}")
 
 
 def term_hits(rows, text):
@@ -149,6 +232,7 @@ def run(book, ids=None):
             for m in re.finditer(rf"([{tgt_chars}{sep}]+){re.escape(left)}([A-Z][^{re.escape(right)}]{{1,60}})"
                                  rf"{re.escape(right)}", plain):
                 names[m.group(2).strip()].add(m.group(1))
+    consistency(book, orig, {k: v for k, v in trans.items() if k in set(ids)}, add)
     if len(ratios) >= 20:  # per-book calibration of the expected length ratio
         mean, sd = statistics.mean(ratios.values()), statistics.pstdev(ratios.values()) or 1
         z = tl.get("checks", {}).get("length_warn_z", 2.5)

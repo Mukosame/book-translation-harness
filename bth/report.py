@@ -1,15 +1,11 @@
 """review/QA_REPORT.md: issue statistics, high-risk segments, stratified spot-check sample (SOP 4.4/4.5)."""
 import collections
-import json
 import random
 
-from . import check, figures
+from . import check, errata, figures
+from .book import read_jsonl
 
 SAMPLE_RATE = {"high": 0.04, "medium": 0.09, "low": 0.15}
-
-
-def _jsonl(path):
-    return [json.loads(x) for x in path.read_text("utf-8").splitlines() if x.strip()] if path.exists() else []
 
 
 def sample(book, rate):
@@ -25,15 +21,16 @@ def run(book):
     review = book.path("review")
     review.mkdir(exist_ok=True)
     rounds = sorted(review.glob("qa_r*.jsonl"))
-    issues = [i for p in rounds for i in _jsonl(p)]
-    fixed = {(x["id"], int(p.stem.split("_r")[1])) for p in review.glob("fix_r*.jsonl") for x in _jsonl(p)}
+    issues = [i for p in rounds for i in read_jsonl(p)]
+    fixed = {(x["id"], int(p.stem.split("_r")[1])) for p in review.glob("fix_r*.jsonl") for x in read_jsonl(p)}
     last = max((i["round"] for i in issues), default=0)
     checks = check.run(book)
     tier = book.tgt_lang.get("quality_tier", "high")
     risky = sorted({i["id"] for i in issues if i["severity"] == "critical"} |
                    {i["id"] for i in issues if i["round"] == last and i["severity"] == "major"
                     and (i["id"], last) not in fixed} |
-                   {c["id"] for c in checks if c["level"] == "error" or c["code"] in ("length", "number")} - {"*"})
+                   {c["id"] for c in checks if c["level"] == "error" or c["code"] in ("length", "number") + check.CONSISTENCY}
+                   - {"*"})
     picks = sample(book, SAMPLE_RATE.get(tier, 0.04))
     lines = [f"# QA report: {book.root.name} ({book.cfg['lang']['from']} → {book.cfg['lang']['to']})", "",
              f"Quality tier: **{tier}**; suggested human review: "
@@ -50,7 +47,8 @@ def run(book):
               "", f"## High-risk segments ({len(risky)})", "", " ".join(f"`{x}`" for x in risky) or "none",
               "", f"## Spot-check sample ({len(picks)})", "", " ".join(f"`{x}`" for x in picks),
               "", "## Possible errors in the original", ""]
-    lines += [f"- `{i['id']}`: {i.get('rationale', '')}" for i in issues if i.get("source_error")] or ["none reported"]
+    errata.collect(book)  # refresh errata.csv
+    lines += errata.report_lines(book)
     lines += ["", "## Name variants", ""] + [f"- {c['msg']}" for c in checks if c["code"] == "name-variant"]
     proposed = [r for r in check.glossary(book, approved_only=False) if r.get("status") != "approved"]
     lines += ["", f"## Unverified glossary rows ({len(proposed)})", ""] + \
