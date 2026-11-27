@@ -2,6 +2,8 @@
 
 # 📚 bth: book translation harness
 
+**English** · [简体中文](README.zh-Hans.md)
+
 **Translate whole books with AI agents and keep them consistent from page one to the index.**
 
 Any language pair · Any agent runtime · EPUB in, EPUB out · You can correct anything, down to a single sentence
