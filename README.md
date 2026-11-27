@@ -13,7 +13,7 @@ Any language pair · Any agent runtime · EPUB in, EPUB out · You can correct a
 
 </div>
 
-https://github.com/user-attachments/assets/96d89783-21c7-4ce1-9390-a2a74071fb47
+https://github.com/user-attachments/assets/c4ba3086-4896-4ccc-a9ce-47a7110ecf2b
 
 ---
 
