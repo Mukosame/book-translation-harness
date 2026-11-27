@@ -6,8 +6,6 @@
 
 **用 AI 智能体翻译整本书，从第一页到索引都保持一致。**
 
-任意语言对 · 任意智能体运行时 · EPUB 进，EPUB 出 · 任何地方都能人工修正，细到一句话
-
 ![Python](docs/badges/python.svg)
 ![License](docs/badges/license.svg)
 ![Dependencies](docs/badges/deps.svg)
