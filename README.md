@@ -6,8 +6,6 @@
 
 **Translate whole books with AI agents and keep them consistent from page one to the index.**
 
-Any language pair · Any agent runtime · EPUB in, EPUB out · You can correct anything, down to a single sentence
-
 ![Python](docs/badges/python.svg)
 ![License](docs/badges/license.svg)
 ![Dependencies](docs/badges/deps.svg)
