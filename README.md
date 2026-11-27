@@ -62,7 +62,7 @@ flowchart LR
     TR --> CHK{"⑤ Script checks<br/><i>placeholders · numbers ·<br/>glossary · names</i>"}
     CHK --> QA["⑥ AI QA<br/><i>cross-assigned, report-only</i>"]
     QA -->|critical / major| FIX["⑦ Fix<br/><i>minimal edits, logged</i>"]
-    FIX -->|re-check changed| QA
+    FIX -->|re-check changed + related| QA
     QA -->|clean| BUILD["⑧ Build + verify"]
     BUILD --> OUT[/"📦 EPUB<br/>🔍 bilingual.html<br/>📋 QA_REPORT.md"/]
 
@@ -108,7 +108,7 @@ Turing asked a simple question:                    图灵提出了一个简单�
 - counts and fix rates by severity;
 - high-risk segments;
 - a stratified, reproducible spot-check sample;
-- suspected **errors in the original book**;
+- **errors in the original book**, and whether each was corrected or kept as printed;
 - glossary rows still waiting for verification;
 - every image that contains text, and whether it was replaced.
 
@@ -119,7 +119,7 @@ Turing asked a simple question:                    图灵提出了一个简单�
 ```bash
 git clone https://github.com/Mukosame/book-translation-harness.git && cd book-translation-harness
 pip install -e .              # Python ≥ 3.11 (dependency: lxml)
-pip install pymupdf           # only for PDF sources
+pip install pymupdf           # only for PDF sources and figure previews
 
 bth init books/my-book --source my-book.epub --from en --to zh-Hans --locale zh-Hans-CN
 ```
@@ -137,6 +137,7 @@ bth done   books/my-book translate-r1-001
 bth check  books/my-book                              # deterministic checks
 bth build  books/my-book                              # EPUB + bilingual HTML
 bth impact books/my-book --terms "policy"             # after editing the glossary
+bth preview books/my-book                             # render the translated figures as PNGs
 ```
 
 ## ✍️ Correct and steer at any level
@@ -151,6 +152,7 @@ The agents translate the whole book; you decide what is right. Every correction 
 | a label inside a chart | `translation/chNN.md` (its `fig` segment) | `bth build` | the new wording is set into the image |
 | a whole figure | save a redrawn copy in `figures/` | `bth build` | it replaces the original image |
 | a quotation | `quotes.csv` | `bth impact --terms …` | the verified wording is used wherever it occurs |
+| a translator's note on an error in the original | `errata.csv` (reword it, or set `status` to `omit`) | `bth build` | the errata page or inline note follows |
 | a rule for a whole language | `bth/langs/<tag>.toml` | `bth build` | every book in that language benefits |
 
 ## 🌍 Languages
@@ -174,6 +176,8 @@ books/my-book/
 ├── style_guide.md     # book background, chapter summaries, decisions
 ├── glossary.csv       # terms · names · works (context, forbidden variants, evidence)
 ├── examples.md        # translations that set the voice
+├── quotes.csv         # quotations with their original wording and evidence
+├── errata.csv         # documented corrections of errors in the original
 ├── figures/           # optional translated images that replace the originals
 ├── review/            # QA issues, fix logs, QA_REPORT.md
 └── dist/              # my-book.zh-Hans.epub · bilingual.html
@@ -181,7 +185,7 @@ books/my-book/
 
 ## 🧱 Design notes
 
-- **Small on purpose.** About 1,700 lines of Python; the only required dependency is lxml. Code is managed with the [ponytail](https://github.com/DietrichGebert/ponytail) rules: reuse before adding, a test for every non-trivial piece of logic, and known limits marked `shortcut:` in the code.
+- **Small on purpose.** About 2,400 lines of Python; the only required dependency is lxml. Code is managed with the [ponytail](https://github.com/DietrichGebert/ponytail) rules: reuse before adding, a test for every non-trivial piece of logic, and known limits marked `shortcut:` in the code.
 - **Built from practice.** The method comes from translating two complete non-fiction books (a PDF and an EPUB) with parallel agents, including a full review pass and online verification of names. [`docs/SOP.md`](docs/SOP.md) explains every gate and why it exists.
 - **Known limits:**
   - the index is not re-sorted by target-language collation;
